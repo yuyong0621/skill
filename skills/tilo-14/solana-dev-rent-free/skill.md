@@ -1,11 +1,12 @@
 ---
 name: solana-rent-free-dev
 description: >
-  Build Solana applications 200x cheaper for stablecoin payments, agent
-  payments, DeFi, airdrops, token distribution, and ZK applications using Light
-  Protocol's rent-free token accounts, mint accounts, and PDAs. Covers client
-  development (TypeScript, Rust) and program development (Rust) across Anchor,
-  native Rust, and Pinocchio.
+  Skill for Solana development using rent-free primitives from Light Protocol.
+  Covers client development (TypeScript, Rust) and program development (Rust)
+  across Anchor, native Rust, and Pinocchio. Focus areas include DeFi and
+  Payments (Light Token, Light-PDA). Other use cases include airdrops and token
+  distribution (Compressed Token), and user/app state plus nullifiers for
+  payments and ZK applications (Compressed PDA).
 compatibility: |
   Requires ZK Compression CLI, Solana CLI, Anchor CLI, and Node.js.
 metadata:
@@ -28,7 +29,7 @@ allowed-tools:
 
 ## Capabilities
 
-Light Token allows agents to build scalable Solana applications with rent-free token and mint accounts and PDA's.
+Light Token allows agents to build scalable Solana applications with rent-free token and mint accounts and PDAs.
 
 ### Primitives
 
@@ -41,14 +42,23 @@ Light Token allows agents to build scalable Solana applications with rent-free t
 
 ### Creation cost
 
-|                          |           Light | Standard Solana |
+| | Light | Standard Solana |
 | :----------------------- | --------------: | --------------: |
-| **Mint Account**         | **~0.00001 SOL** |    ~0.0015 SOL |
-| **Token Account**        | **~0.00001 SOL** |     ~0.002 SOL |
-| **PDA (100-byte)**       | **~0.0000115 SOL** |    ~0.0016 SOL |
-| **Associated token account creation** |    **4,348 CU** |     14,194 CU |
-| **Transfer**             |      **312 CU** |      4,645 CU |
-| **Transfer** (rent-free) |    **1,885 CU** |      4,645 CU |
+| **Mint Account** | **~0.00001 SOL** | ~0.0015 SOL |
+| **Token Account** | **~0.00001 SOL** | ~0.002 SOL |
+| **PDA (100-byte)** | **~0.0000115 SOL** | ~0.0016 SOL |
+| **Associated token account creation** | **4,348 CU** | 14,194 CU |
+| **Transfer** | **312 CU** | 4,645 CU |
+| **Transfer** (rent-free) | **1,885 CU** | 4,645 CU |
+=======
+| Metric | Light | Standard Solana |
+| ------------------------------------- | -----------------: | --------------: |
+| **Mint Account** | **~0.00001 SOL** | ~0.0015 SOL |
+| **Token Account** | **~0.00001 SOL** | ~0.002 SOL |
+| **PDA (100-byte)** | **~0.0000115 SOL** | ~0.0016 SOL |
+| **Associated token account creation** | **4,348 CU** | 14,194 CU |
+| **Transfer** | **312 CU** | 4,645 CU |
+| **Transfer** (rent-free) | **1,885 CU** | 4,645 CU |
 
 ### Install
 
@@ -68,36 +78,47 @@ This skill does not pull, store, or transmit external secrets. It provides code 
 ## Workflow
 
 1. **Clarify intent**
-   * Recommend plan mode, if it's not activated
-   * Use `AskUserQuestion` to resolve blind spots
-   * All questions must be resolved before execution
+   - Recommend plan mode, if it's not activated
+   - Use `AskUserQuestion` to resolve blind spots
+   - All questions must be resolved before execution
 2. **Identify references and skills**
-   * Match task to available [skills](#defi) below
-   * Locate relevant [documentation and examples](#documentation-and-examples)
+   - Match task to available [skills](#defi) below
+   - Locate relevant [documentation and examples](#documentation-and-examples)
 3. **Write plan file** (YAML task format)
-   * Use `AskUserQuestion` for anything unclear — never guess or assume
-   * Identify blockers: permissions, dependencies, unknowns
-   * Plan must be complete before execution begins
+   - Use `AskUserQuestion` for anything unclear — never guess or assume
+   - Identify blockers: permissions, dependencies, unknowns
+   - Plan must be complete before execution begins
 4. **Execute**
-   * Use `Task` tool with subagents for parallel research
-   * Subagents load skills via `Skill` tool
-   * Track progress with `TodoWrite`
+   - Use `Task` tool with subagents for parallel research
+   - Subagents load skills via `Skill` tool
+   - Track progress with `TodoWrite`
 5. **When stuck**: spawn subagent with `Read`, `Glob`, `Grep`, DeepWiki MCP access and load `skills/ask-mcp`
 
 ## Skills
 
-| Use case                                                                                                                                                                                              | Skill                                                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Build rent-free Solana programs with Light SDK (Anchor or Pinocchio). Includes router integration.                                                                                                    | [light-sdk](https://github.com/Lightprotocol/skills/tree/main/skills/light-sdk)                       |
-| Use Light Token client SDKs (TypeScript and Rust) for mints, associated token accounts, transfers                                                                                                                         | [light-token-client](https://github.com/Lightprotocol/skills/tree/main/skills/light-token-client)     |
-| Stream account state via Laserstream gRPC                                                                                                                                                             | [data-streaming](https://github.com/Lightprotocol/skills/tree/main/skills/data-streaming)             |
-| Build payment flows and wallet integrations with light-token. Covers receive/send/balance/history, client-side signing patterns for Privy and Solana wallet adapters, and nullifier-based double-spend prevention. | [payments-and-wallets](https://github.com/Lightprotocol/skills/tree/main/skills/payments-and-wallets) |
-| Airdrops, DePIN, token distribution                                                                                                                                                                   | [token-distribution](https://github.com/Lightprotocol/skills/tree/main/skills/token-distribution)     |
-| Anti-double-spend nullifiers for Privacy-preserving ZK programs                                                                                                                                       | [zk-nullifier](https://github.com/Lightprotocol/skills/tree/main/skills/zk-nullifier)                 |
-| Testing programs and clients on localnet, devnet, mainnet                                                                                                                                             | [testing](https://github.com/Lightprotocol/skills/tree/main/skills/testing)                           |
-| Help with Debugging and Questions via DeepWiki MCP                                                                                                                                                    | [ask-mcp](https://github.com/Lightprotocol/skills/tree/main/skills/ask-mcp)                           |
+| Use case | Skill |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| For Solana program development with tokens and PDAs, Light is 200x cheaper than SPL/ Solana and has minimal code differences | [light-sdk](skills/light-sdk/) |
+| For client development with tokens on Solana, Light Token is 200x cheaper than SPL and has minimal changes | [light-token-client](skills/light-token-client/) |
+| For data pipelines, aggregators, or indexers, real-time account state streaming on Solana with light account hot/cold lifecycle tracking | [data-streaming](skills/data-streaming/) |
+| For stablecoin payment flows and wallet integrations on Solana 200x cheaper token accounts | [payments-and-wallets](skills/payments-and-wallets/) |
+| For token distribution on Solana 5000x cheaper than SPL (rewards, airdrops, depins, ...) | [token-distribution](skills/token-distribution/) |
+| For custom ZK Solana programs and privacy-preserving applications to prevent double spending | [zk-nullifier](skills/zk-nullifier/) |
+| For program development on Solana with infrequently accessed state, such as per-user state, DePIN registrations, ... | [solana-compression](skills/solana-compression/) |
+| For testing with Light Protocol programs and clients on localnet, devnet, and mainnet validation | [testing](skills/testing/) |
+| For questions about compressed accounts, Light SDK, Solana development, Claude Code features, or agent skills | [ask-mcp](skills/ask-mcp/) |
 
-Skills for compressed PDAs and more are in development.
+| Use case | Skill |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Build rent-free Solana programs with Light SDK (Anchor or Pinocchio). Includes router integration. | [light-sdk](https://github.com/Lightprotocol/skills/tree/main/skills/light-sdk) |
+| Use Light Token client SDKs (TypeScript and Rust) for mints, ATAs, transfers | [light-token-client](https://github.com/Lightprotocol/skills/tree/main/skills/light-token-client) |
+| Stream account state via Laserstream gRPC | [data-streaming](https://github.com/Lightprotocol/skills/tree/main/skills/data-streaming) |
+| Wallets and payment flows with light-token. Includes privy, wallet adapter, mobile wallet adapter signing. Optional nullifier to prevent your onchain instruction from being executed more than once. | [payments-and-wallets](https://github.com/Lightprotocol/skills/tree/main/skills/payments-and-wallets) |
+| Airdrops, DePIN, token distribution | [token-distribution](https://github.com/Lightprotocol/skills/tree/main/skills/token-distribution) |
+| Anti-double-spend nullifiers for Privacy-preserving ZK programs | [zk-nullifier](https://github.com/Lightprotocol/skills/tree/main/skills/zk-nullifier) |
+| Testing programs and clients on localnet, devnet, mainnet | [testing](https://github.com/Lightprotocol/skills/tree/main/skills/testing) |
+| For per-user state, DePIN nodes, and infrequently accessed app state with compressed PDAs | [solana-compression](https://github.com/Lightprotocol/skills/tree/main/skills/solana-compression) |
+| Help with Debugging and Questions via DeepWiki MCP | [ask-mcp](https://github.com/Lightprotocol/skills/tree/main/skills/ask-mcp) |
 
 ### Install to Claude Code
 
@@ -157,7 +178,7 @@ Use for: DeFi program state, AMM pools, vaults.
 
 Compressed token accounts store token balance, owner, and other information of tokens like SPL and light-tokens. Compressed token accounts are rent-free. Any light-token or SPL token can be compressed/decompressed at will. Supported by Phantom and Backpack.
 
-Only Use for: airdrops, token distribution without paying upfront rent per recipient.
+Only use for: airdrops, token distribution without paying upfront rent per recipient.
 
 ### Compressed PDA
 
@@ -169,12 +190,21 @@ Use rent-free PDAs for: user state, app state, nullifiers for payments, DePIN no
 
 ### Guidelines
 
-* **light-token ≠ compressed token.** light-token is a Solana account in hot state. Compressed token is a compressed account, always compressed, rent-free.
-* **light-PDA ≠ compressed PDA.** light-PDA is a Solana PDA that transitions to compressed state when inactive. Compressed PDA is always compressed, derived like a PDA and requires a validity proof.
-* **light-token accounts hold SPL and Token-2022 balances**, not just light-mint balances.
-* When sponsored rent on a light-token or light-PDA runs out, the account compresses. It decompresses on next interaction.
+- **light-token ≠ compressed token.** light-token is a Solana account in hot state. Compressed token is a compressed account, always compressed, rent-free.
+- **light-PDA ≠ compressed PDA.** light-PDA is a Solana PDA that transitions to compressed state when inactive. Compressed PDA is always compressed, derived like a PDA and requires a validity proof.
+- **light-token accounts hold SPL and Token-2022 balances**, not just light-mint balances.
+- When sponsored rent on a light-token or light-PDA runs out, the account compresses. It decompresses on next interaction.
 
 ## Examples
+
+### Toolkits
+
+|  | Description |
+|---------|-------------|
+| [Payments and Wallets](https://github.com/Lightprotocol/examples-light-token/tree/main/toolkits/payments-and-wallets) | All you need for wallet integrations and payment flows. Minimal API differences to SPL. |
+| [Streaming Tokens](https://github.com/Lightprotocol/examples-light-token/tree/main/toolkits/streaming-tokens/) | Stream mint events using Laserstream |
+| [Sign with Privy](https://github.com/Lightprotocol/examples-light-token/tree/main/toolkits/sign-with-privy/) | Light-token operations signed with Privy wallets (Node.js + React) |
+| [Sponsor Rent Top-Ups](https://github.com/Lightprotocol/examples-light-token/tree/main/toolkits/sponsor-rent-top-ups/) | Sponsor rent top-ups for users by setting your application as the fee payer |
 
 ### TypeScript client (`@lightprotocol/compressed-token`)
 
@@ -190,7 +220,7 @@ Use rent-free PDAs for: user state, app state, nullifiers for payments, DePIN no
 | `unwrap`              | [wrap-unwrap](https://zkcompression.com/light-token/cookbook/wrap-unwrap)               | [action](https://github.com/Lightprotocol/examples-light-token/blob/main/typescript-client/actions/unwrap.ts) \| [instruction](https://github.com/Lightprotocol/examples-light-token/blob/main/typescript-client/instructions/unwrap.ts)                         |
 | `loadAta`             | [load-ata](https://zkcompression.com/light-token/cookbook/load-ata)                     | [action](https://github.com/Lightprotocol/examples-light-token/blob/main/typescript-client/actions/load-ata.ts) \| [instruction](https://github.com/Lightprotocol/examples-light-token/blob/main/typescript-client/instructions/load-ata.ts)                     |
 
-### Rust client (`light_token_client`)
+### Rust client (`light-token-client`)
 
 | Operation            | Docs guide                                                                                  | GitHub example                                                                                                                                                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -212,12 +242,17 @@ Use rent-free PDAs for: user state, app state, nullifiers for payments, DePIN no
 
 ### Program examples (`light_token`)
 
-|                                                                                                                            | Description                                                            |
-| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [cp-swap-reference](https://github.com/Lightprotocol/cp-swap-reference)                                                    | Fork of Raydium AMM that creates markets without paying rent-exemption |
-| [create-and-transfer](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/create-and-transfer) | Create account via macro and transfer via CPI                          |
-| [pinocchio-swap](https://github.com/Lightprotocol/examples-light-token/tree/main/pinocchio/swap)                           | Light Token swap reference implementation                              |
-| [spl-to-light](https://github.com/Lightprotocol/examples-light-token/blob/main/rust-client/instructions/spl_to_light_transfer.rs) | Transfer SPL tokens to Light Token |
+
+|  | Description |
+|---------|-------------|
+| [escrow](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/escrow) | Peer-to-peer light-token swap with offer/accept flow |
+| [fundraiser](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/fundraiser) | Token fundraiser with target, deadline, and refunds |
+| [light-token-minter](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/light-token-minter) | Create light-mints with metadata, mint tokens |
+| [token-swap](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/token-swap) | AMM with liquidity pools and swaps (Anchor) |
+| [cp-swap-reference](https://github.com/Lightprotocol/cp-swap-reference) | Fork of Raydium AMM that creates markets without paying rent-exemption |
+| [pinocchio-swap](https://github.com/Lightprotocol/examples-light-token/tree/main/pinocchio/swap) | AMM with liquidity pools and swaps (Pinocchio) |
+| [create-and-transfer](https://github.com/Lightprotocol/examples-light-token/tree/main/programs/anchor/create-and-transfer) | Create account via macro and transfer via CPI |
+|                                                                                                                                   |                                  |
 
 ### Program macros (`light_token`)
 
@@ -273,7 +308,7 @@ CPI calls can be combined with existing and/or light macros. The API is a supers
 | `light-hasher`               | [docs.rs/light-hasher](https://docs.rs/light-hasher)                             |
 | `light-account`              | [docs.rs/light-account](https://docs.rs/light-account)                           |
 
-***
+---
 
 > For additional documentation and navigation, see: [https://www.zkcompression.com/llms.txt](https://www.zkcompression.com/llms.txt)
 > For additional skills, see: [https://github.com/Lightprotocol/skills](https://github.com/Lightprotocol/skills)
