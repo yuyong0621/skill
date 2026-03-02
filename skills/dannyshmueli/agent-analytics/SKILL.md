@@ -1,10 +1,12 @@
 ---
 name: agent-analytics
-description: "Simple website analytics your AI agent controls end-to-end. Track page views, events, funnels, retention, and A/B experiments across all your projects. Use when: adding website tracking, checking site traffic, setting up conversion funnels, running A/B experiments, or replacing Mixpanel / Plausible / PostHog with something lightweight and agent-operated. No dashboard needed."
+description: "Web analytics platform that AI agents can query via CLI. Track page views, custom events, run A/B experiments, analyze funnels, retention cohorts, and traffic heatmaps. Use when the user needs web analytics, visitor tracking, event tracking, conversion optimization, growth insights, A/B testing, or wants to add analytics to their website or app. Also available as an MCP server at mcp.agentanalytics.sh."
 version: 3.7.0
 author: dannyshmueli
-repository: https://github.com/Agent-Analytics/agent-analytics-cli
+license: MIT
+repository: https://github.com/Agent-Analytics/agent-analytics-mcp
 homepage: https://agentanalytics.sh
+compatibility: Requires npx and an Agent Analytics API key (AGENT_ANALYTICS_API_KEY). Sign up at agentanalytics.sh.
 tags:
   - analytics
   - tracking
@@ -12,31 +14,19 @@ tags:
   - events
   - experiments
   - live
-  - website-tracking
-  - page-views
-  - funnels
-  - retention
-  - ab-testing
-  - simple-analytics
-  - privacy
-  - agent-first
-  - plausible-alternative
-  - mixpanel-alternative
-  - growth
-metadata: {"openclaw":{"requires":{"env":["AGENT_ANALYTICS_API_KEY"],"anyBins":["npx"]},"primaryEnv":"AGENT_ANALYTICS_API_KEY"}}
+metadata:
+  openclaw:
+    requires:
+      env:
+        - AGENT_ANALYTICS_API_KEY
+      anyBins:
+        - npx
+    primaryEnv: AGENT_ANALYTICS_API_KEY
 ---
 
-# Agent Analytics — Website analytics your AI agent fully operates
+# Agent Analytics — Stop juggling dashboards. Let your agent do it.
 
-Simple, privacy-first website analytics and growth toolkit that your AI agent controls end-to-end. Track page views, custom events, conversion funnels, user retention, and A/B experiments across all your projects — then talk to your analytics in natural language. No dashboards. Your agent creates projects, adds tracking code, queries traffic data, builds funnels, runs experiments, and tells you what to optimize next. A lightweight Plausible/Mixpanel/PostHog alternative built for the AI agent era.
-
-## Security & trust
-
-- **Open source**: Full source at [github.com/Agent-Analytics/agent-analytics-cli](https://github.com/Agent-Analytics/agent-analytics-cli) — inspect every command before running
-- **Read-only by default**: The CLI only reads analytics data. Write operations (creating projects, experiments) require explicit user-provided API keys
-- **No arbitrary code execution**: All CLI commands use structured flags (`--days`, `--property`, `--steps`). No eval, no shell interpolation, no dynamic code generation
-- **Scoped permissions**: The API key controls access. The CLI never requests filesystem, network, or system-level permissions beyond HTTP calls to `api.agentanalytics.sh`
-- **Published on npm**: [@agent-analytics/cli](https://www.npmjs.com/package/@agent-analytics/cli) — versioned, auditable, standard npm supply chain
+You are adding analytics tracking using Agent Analytics — the analytics platform your AI agent can actually use. Built for developers who ship lots of projects and want their AI agent to track, analyze, experiment, and optimize across all of them.
 
 ## Philosophy
 
@@ -122,6 +112,34 @@ Only buttons that indicate conversion intent:
 - Name IDs as `section_action`: `hero_signup`, `pricing_pro`, `nav_dashboard`
 - Don't encode data the page_view already captures (path, referrer, browser)
 
+## Step 2a: Measure time-on-page
+
+Add `data-heartbeat="15"` to the tracking snippet to get accurate time-on-page:
+
+```html
+<script defer src="https://api.agentanalytics.sh/tracker.js"
+  data-project="my-site" data-token="aat_..."
+  data-heartbeat="15"></script>
+```
+
+**Why it matters:** Without this, time-on-page is just the gap between two page views. If someone reads a 10-minute article and closes the tab, the recorded time is 0 seconds. This fixes it by measuring actual engaged time.
+
+**How it works:**
+- The tracker silently counts seconds while the tab is visible (no events sent during)
+- When the user leaves the page (tab hidden, closes tab, or SPA navigation), the `time_on_page` property is added to the original `page_view` event — zero extra events
+- The timer pauses when the tab is hidden and resumes when visible
+- Minimum interval is 15 seconds (values below 15 are clamped)
+- Works with SPA navigation — each page gets its own time_on_page
+
+**Querying time-on-page data:**
+
+```bash
+# Pages with time_on_page data
+npx @agent-analytics/cli query my-site \
+  --filter '[{"field":"event","op":"eq","value":"page_view"},{"field":"properties.time_on_page","op":"gt","value":"0"}]' \
+  --group-by properties.path --metrics event_count,unique_users
+```
+
 ## Step 2b: Run A/B experiments (Pro)
 
 Experiments let you test which variant of a page element converts better. The full lifecycle is API-driven — no dashboard UI needed.
@@ -169,12 +187,153 @@ npx @agent-analytics/cli experiments complete exp_abc123 --winner new_cta
 npx @agent-analytics/cli experiments delete exp_abc123
 ```
 
+### Forcing variants via URL param
+
+Force a specific variant with `?aa_variant_<experiment_name>=<variant_key>`. Useful for ad landing pages that should always show the matching headline, QA testing, or sharing a specific variant.
+
+```
+https://yoursite.com/pricing/?aa_variant_signup_cta=new_cta&utm_campaign=new-cta-ad
+```
+
+- The variant must exist in the experiment config — invalid values fall through to normal hash assignment
+- Works with both declarative and programmatic experiments
+- Exposure events include `forced: true` so you can filter them in analytics
+
 ### Best practices
 - Name experiments with snake_case: `signup_cta`, `pricing_layout`, `hero_copy`
 - Use 2 variants (A/B) unless you have high traffic — more variants need more data
 - Set a clear `goal_event` that maps to a business outcome (`signup`, `purchase`, not `page_view`)
 - Let experiments run until `sufficient_data: true` before picking a winner
 - Complete the experiment when done: `experiments complete <id> --winner new_cta`
+
+## Step 2c: Track JS errors
+
+Add `data-track-errors="true"` to the tracking snippet to automatically capture JavaScript errors:
+
+```html
+<script defer src="https://api.agentanalytics.sh/tracker.js"
+  data-project="my-site" data-token="aat_..."
+  data-track-errors="true"></script>
+```
+
+**What it tracks:**
+- Uncaught exceptions (`window.addEventListener('error')`)
+- Unhandled promise rejections (`window.addEventListener('unhandledrejection')`)
+- Each error becomes a `$error` event with `{ message, source, line, col }`
+
+**Safety features:**
+- Max 5 errors per page view (prevents runaway logging)
+- Deduplicates by message+source+line (same error on same line only tracked once)
+- Resets on SPA navigation
+- Does not interfere with other error handlers (additive, not overwriting)
+- No stack traces (keeps payloads small)
+
+**Querying error data:**
+
+```bash
+# Recent errors
+npx @agent-analytics/cli events my-site --event '$error' --days 7
+
+# Error breakdown by message
+npx @agent-analytics/cli breakdown my-site --property message --event '$error'
+
+# Errors per source file
+npx @agent-analytics/cli query my-site \
+  --filter '[{"field":"event","op":"eq","value":"$error"}]' \
+  --group-by properties.source --metrics event_count
+```
+
+## Step 2d: Set global properties
+
+Use `aa.set()` to attach properties to ALL subsequent events without repeating them in every `track()` call:
+
+```js
+// After login, tag all future events with the user's plan
+window.aa?.set({ plan: 'pro', team: 'acme' });
+
+// These events now include plan='pro' and team='acme' automatically
+window.aa?.track('feature_used', { feature: 'export' });
+window.aa?.track('cta_click', { id: 'upgrade' });
+```
+
+**How it works:**
+- Merge order: auto-collected < UTM < global (set) < event-specific. Event-specific properties always win.
+- Multiple `set()` calls merge — `set({a:1}); set({b:2})` results in `{a:1, b:2}`
+- Remove a key: `aa.set({ plan: null })`
+- In-memory only — does not persist across page reloads (use `identify()` for cross-session user identity)
+- Zero overhead when not used
+
+**When to use:**
+- After login/signup: `aa.set({ plan: user.plan, role: user.role })`
+- Feature flags: `aa.set({ feature_flag_x: 'variant_b' })`
+- Any context that applies to all events for the rest of the session
+
+## Step 2e: Consent management (GDPR/CCPA)
+
+For sites that require user consent before tracking, use the consent management API:
+
+```html
+<!-- Add data-require-consent to the script tag -->
+<script defer data-project="mysite" data-token="aat_..." data-require-consent="true"
+  src="https://api.agentanalytics.sh/tracker.js"></script>
+```
+
+```js
+// Events buffer in-memory until consent is granted — nothing is sent
+// When the user accepts cookies/tracking:
+window.aa?.grantConsent();   // flushes buffer + persists to localStorage
+
+// If the user declines or revokes:
+window.aa?.revokeConsent();  // discards buffer + blocks future sends
+```
+
+**How it works:**
+- `data-require-consent="true"` or `aa.requireConsent()` → events queue in-memory but never send
+- `aa.grantConsent()` → flushes buffered events, saves `aa_consent=granted` in localStorage, normal tracking resumes
+- `aa.revokeConsent()` → clears buffer, removes localStorage consent, blocks sends
+- On next page load, prior consent auto-detected from localStorage — no re-consent needed
+- Pre-consent events are preserved (not discarded) so nothing is lost
+
+**Programmatic alternative** (no script attribute needed):
+```js
+// Call before any events are tracked
+window.aa?.requireConsent();
+
+// Later, when user consents
+window.aa?.grantConsent();
+```
+
+## Step 2f: Performance timing
+
+Collect page load performance metrics automatically:
+
+```html
+<script defer data-project="mysite" data-token="aat_..."
+  data-track-performance="true"
+  src="https://api.agentanalytics.sh/tracker.js"></script>
+```
+
+After `window.load`, the tracker reads the Navigation Timing API and merges these properties into the `page_view` event (no extra events stored):
+
+| Property | What it measures |
+|----------|------------------|
+| `perf_dns` | DNS lookup (ms) |
+| `perf_tcp` | TCP handshake (ms) |
+| `perf_ttfb` | Time to first byte (ms) |
+| `perf_dom_interactive` | DOM ready for interaction (ms) |
+| `perf_dom_complete` | DOM fully loaded (ms) |
+| `perf_load` | Full page load (ms) |
+
+Query performance data:
+```bash
+npx @agent-analytics/cli events mysite --event page_view --days 7
+# Look for perf_dns, perf_ttfb, perf_load in event properties
+
+npx @agent-analytics/cli breakdown mysite --property perf_ttfb --event page_view
+# See TTFB distribution across page views
+```
+
+Only fires once per page load — SPA navigations via pushState don't create new Navigation Timing entries.
 
 ## Step 3: Test immediately
 
@@ -193,6 +352,35 @@ npx @agent-analytics/cli events PROJECT_NAME
 ## Querying the data
 
 All commands use `npx @agent-analytics/cli`. Your agent uses the CLI directly — no curl needed.
+
+### Ad-hoc queries — talk to your analytics
+
+The `query` command is the most powerful tool. It answers any analytics question by combining metrics, filters, grouping, and date ranges. **Use this when pre-built commands don't answer the question.**
+
+```bash
+# "How many signups from Germany this week?"
+npx @agent-analytics/cli query my-site \
+  --filter '[{"field":"event","op":"eq","value":"signup"},{"field":"country","op":"eq","value":"DE"}]' \
+  --metrics event_count,unique_users --days 7
+
+# "Which events contain 'click' in the name?"
+npx @agent-analytics/cli query my-site \
+  --filter '[{"field":"event","op":"contains","value":"click"}]' \
+  --group-by event
+
+# "Traffic breakdown by country, top 10"
+npx @agent-analytics/cli query my-site \
+  --group-by country --metrics event_count,unique_users --limit 10
+
+# "Daily unique users for the last 30 days"
+npx @agent-analytics/cli query my-site \
+  --metrics unique_users --group-by date --days 30
+```
+
+**Filter operators:** `eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `contains`
+**Filterable fields:** `event`, `user_id`, `date`, `country`, `session_id`, `timestamp`, and any `properties.*` field
+**Group by:** `event`, `date`, `user_id`, `session_id`, `country`
+**Metrics:** `event_count`, `unique_users`, `session_count`, `bounce_rate`, `avg_duration`
 
 ### CLI reference
 
@@ -218,6 +406,9 @@ npx @agent-analytics/cli sessions my-site               # Individual session rec
 npx @agent-analytics/cli properties my-site             # Discover event names & property keys
 npx @agent-analytics/cli properties-received my-site    # Property keys per event type (sampled)
 npx @agent-analytics/cli query my-site --metrics event_count,unique_users --group-by date  # Flexible query
+npx @agent-analytics/cli query my-site --group-by country --metrics event_count,unique_users  # Events per country
+npx @agent-analytics/cli query my-site --filter '[{"field":"country","op":"eq","value":"US"}]'  # Filter by country
+npx @agent-analytics/cli query my-site --filter '[{"field":"event","op":"contains","value":"click"}]' --group-by event  # Substring match
 npx @agent-analytics/cli funnel my-site --steps "page_view,signup,purchase"  # Funnel drop-off analysis
 npx @agent-analytics/cli funnel my-site --steps "page_view,signup" --breakdown country  # Funnel segmented by country
 npx @agent-analytics/cli retention my-site --period week --cohorts 8        # Cohort retention analysis
@@ -242,6 +433,8 @@ npx @agent-analytics/cli revoke-key                     # Rotate API key
 - `--event <name>` — filter by event name (`breakdown`) or first-seen event filter (`retention`)
 - `--returning-event <name>` — what counts as "returned" (`retention`, defaults to same as `--event`)
 - `--cohorts <N>` — number of cohort periods, 1-30 (`retention`, default: 8)
+- `--filter <json>` — JSON array of filters for `query` (e.g. `'[{"field":"country","op":"eq","value":"US"}]'`). Operators: `eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `contains`
+- `--group-by <fields>` — comma-separated group_by fields: `event`, `date`, `user_id`, `session_id`, `country` (`query`)
 - `--type <T>` — page type: `entry`, `exit`, `both` (`pages` only, default: entry)
 - `--steps <csv>` — comma-separated event names, 2-8 steps max (`funnel`, required)
 - `--window <N>` — conversion window in hours (`funnel`, default: 168) or live time window in seconds (`live`, default: 60)
@@ -273,8 +466,12 @@ Match the user's question to the right call(s):
 | "Where do users drop off?" | `funnel --steps "page_view,signup,purchase"` | Step-by-step conversion with drop-off rates |
 | "Which variant converts better through the funnel?" | `funnel --steps "page_view,signup" --breakdown variant` | Funnel segmented by experiment variant |
 | "Are users coming back?" | `retention --period week --cohorts 8` | Cohort retention: % returning per period |
+| "How many signups from Germany?" | `query --filter '[{"field":"event","op":"eq","value":"signup"},{"field":"country","op":"eq","value":"DE"}]'` | Ad-hoc filter by event + country |
+| "Events per country" | `query --group-by country --metrics event_count,unique_users` | Country breakdown |
+| "Pages with pricing in the URL?" | `query --filter '[{"field":"properties.path","op":"contains","value":"pricing"}]' --group-by event` | Substring match on properties |
+| "How many sessions this week?" | `query --metrics session_count --days 7` | Count distinct sessions |
 
-For any "how is X doing" question, **always call `insights` first** — it's the single most useful endpoint. For real-time "who's on the site right now", use `live`.
+For any "how is X doing" question, **always call `insights` first** — it's the single most useful endpoint. For real-time "who's on the site right now", use `live`. For any specific question that the pre-built commands don't directly answer (filtering by country, substring matching, combining multiple filters), use `query`.
 
 ## Analyze, don't just query
 

@@ -3,11 +3,16 @@
   "slug": "agent-analytics",
   "displayName": "Agent Analytics",
   "latest": {
-    "version": "3.7.0",
-    "publishedAt": 1771918546785,
-    "commit": "https://github.com/openclaw/skills/commit/267dca45bff81de99a92af45c32e5b0606961087"
+    "version": "4.0.0",
+    "publishedAt": 1772360010938,
+    "commit": null
   },
   "history": [
+    {
+      "version": "3.7.0",
+      "publishedAt": 1771918546785,
+      "commit": "https://github.com/openclaw/skills/commit/267dca45bff81de99a92af45c32e5b0606961087"
+    },
     {
       "version": "0.3.1",
       "publishedAt": 1771788289803,
