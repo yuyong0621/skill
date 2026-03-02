@@ -1,6 +1,6 @@
 # Torch SDK — Design Document
 
-> TypeScript SDK for the Torch Market protocol on Solana. Version 3.7.17.
+> TypeScript SDK for the Torch Market protocol on Solana. Version 3.7.23.
 
 ## Overview
 
@@ -34,8 +34,7 @@ The SDK is designed for AI agent integration. The core safety primitive is the *
 │  getAllLoanPositions()   │  │  buildRepayTransaction()   │
 │  getVault()              │  │  buildLiquidateTransaction │
 │  getVaultForWallet()     │  │  buildClaimProtocolRewardsTx│
-│  getVaultWalletLink()    │  │  buildAutoBuybackTx()      │
-│                          │  │  buildHarvestFeesTx()      │
+│  getVaultWalletLink()    │  │  buildHarvestFeesTx()      │
 │                          │  │  buildSwapFeesToSolTx()    │
 │                          │  │  buildCreateVaultTx()      │
 │                          │  │  buildDepositVaultTx()     │
@@ -71,12 +70,12 @@ src/
 ├── constants.ts        Program ID, PDA seeds, token constants, blacklist, dynamic network
 ├── program.ts          Anchor IDL, PDA derivation, on-chain types, math
 ├── tokens.ts           Read-only queries (tokens, metadata, holders, vault, lending, loan positions, pool price)
-├── transactions.ts     Transaction builders (buy, sell, vault, lending, migrate, buyback, harvest, swap fees)
+├── transactions.ts     Transaction builders (buy, sell, vault, lending, migrate, harvest, swap fees)
 ├── quotes.ts           Buy/sell quote calculations (no RPC write)
 ├── said.ts             SAID Protocol integration (verify, confirm)
 ├── gateway.ts          Irys metadata fetch with fallback
 ├── ephemeral.ts        Ephemeral agent (disposable wallet helper)
-└── torch_market.json   Anchor IDL (v3.7.17, 28 instructions)
+└── torch_market.json   Anchor IDL (v3.7.8, 27 instructions)
 ```
 
 ### Dependency Graph
@@ -124,7 +123,7 @@ The SDK is designed so that an agent wallet:
 
 ### 6. Reward Harvesting
 
-Active agents earn protocol rewards. The protocol treasury accumulates 1% fees from all bonding curve buys across the platform. Each epoch (~weekly), the treasury distributes rewards proportionally to wallets that traded >= 10 SOL volume in the previous epoch. Agents call `buildClaimProtocolRewardsTransaction` to claim — rewards go directly to the vault. This creates a positive feedback loop: agents that trade actively earn back a share of platform fees, reducing their effective cost of operation.
+Active agents earn protocol rewards. The protocol treasury accumulates 1% fees from all bonding curve buys across the platform. Each epoch (~weekly), the treasury distributes rewards proportionally to wallets that traded >= 2 SOL volume in the previous epoch. Agents call `buildClaimProtocolRewardsTransaction` to claim — rewards go directly to the vault. This creates a positive feedback loop: agents that trade actively earn back a share of platform fees, reducing their effective cost of operation.
 
 ---
 
@@ -205,7 +204,7 @@ Each wallet has a reverse-pointer PDA: `["vault_wallet", wallet.key()]`. Given a
 - **DEX Swap**: vault SOL/tokens swap on Raydium, all value stays in vault
 - **Borrow**: vault tokens locked as collateral, SOL to vault
 - **Repay**: vault SOL repays, collateral returned to vault ATA
-- **Star**: vault SOL pays 0.05 SOL fee
+- **Star**: vault SOL pays 0.02 SOL fee
 
 The vault is a **full-custody escrow**. All SOL and tokens stay in the vault. The controller wallet holds nothing of value.
 
@@ -221,7 +220,7 @@ CREATE → BONDING → COMPLETE → MIGRATE → DEX TRADING
    │    buy/sell on curve    vote finalizes   borrow/repay
    │    (vault-funded buys)                  (treasury lending)
    │
-   └── star token (appreciation signal, 0.05 SOL)
+   └── star token (appreciation signal, 0.02 SOL)
 ```
 
 ### Bonding Phase (0–target SOL, per tier: 50/100/200)
@@ -229,7 +228,7 @@ CREATE → BONDING → COMPLETE → MIGRATE → DEX TRADING
 - `buildBuyTransaction` — buy tokens on the bonding curve
 - `buildSellTransaction` — sell tokens back to the curve
 - `getBuyQuote` / `getSellQuote` — simulate trades
-- Fee split: 1% protocol fee, 1% treasury fee, remainder to curve+treasury (20%→5% flat dynamic rate across all tiers)
+- Fee split: 1% protocol fee (90% treasury / 10% dev), remainder to curve+treasury (20%→5% flat dynamic rate). Creator receives 0.2%→1% carved from treasury rate.
 
 ### Migration (V26 — Permissionless)
 
@@ -244,13 +243,12 @@ CREATE → BONDING → COMPLETE → MIGRATE → DEX TRADING
 
 ### Treasury Cranks (Permissionless)
 
-- `buildAutoBuybackTransaction` — trigger treasury buyback when pool price < 80% of migration baseline. Full client-side pre-checks (migration, baseline, cooldown, supply floor, price threshold, dust). Buys tokens with treasury SOL on Raydium and burns them.
 - `buildHarvestFeesTransaction` — harvest accumulated Token-2022 transfer fees from token accounts into the treasury. Auto-discovers source accounts with withheld fees via `getTokenLargestAccounts` + `unpackAccount` + `getTransferFeeAmount`. Falls back gracefully if RPC doesn't support discovery. Optional `sources` param for explicit accounts.
-- `buildSwapFeesToSolTransaction` — swap harvested transfer fee tokens to SOL via Raydium CPMM. Bundles `create_idempotent(treasury_wsol)` + `harvest_fees` + `swap_fees_to_sol` in one atomic transaction. SOL proceeds added to `treasury.sol_balance` and tracked in `treasury.harvested_fees`. Set `harvest=false` to skip harvest if already done separately.
+- `buildSwapFeesToSolTransaction` — swap harvested transfer fee tokens to SOL via Raydium CPMM. Bundles `create_idempotent(treasury_wsol)` + `harvest_fees` + `swap_fees_to_sol` in one atomic transaction. SOL proceeds split 85% treasury / 15% creator. Set `harvest=false` to skip harvest if already done separately.
 
 ### Community Features
 
-- `buildStarTransaction` — star a token (0.05 SOL, sybil-resistant)
+- `buildStarTransaction` — star a token (0.02 SOL, sybil-resistant)
 - `getMessages` — read trade-bundled memos (SPL Memo program)
 - Vote on first buy (`vote` param in `buildBuyTransaction`)
 
@@ -263,9 +261,9 @@ The SDK includes a local quote engine that mirrors the on-chain math exactly:
 ### Buy Quote
 
 ```
-1. Protocol fee: 1% of input SOL
-2. Treasury fee: 1% of input SOL
-3. Dynamic treasury split: 20%→5% flat across all tiers (decays as bonding progresses)
+1. Protocol fee: 1% of input SOL (90% treasury / 10% dev wallet)
+2. Dynamic treasury split: 20%→5% flat across all tiers (decays as bonding progresses)
+3. Creator share: 0.2%→1% carved from treasury split (grows linearly with reserves)
 4. Remaining SOL → constant product formula → tokens out
 5. Token split: 90% to buyer, 10% to community treasury
 ```
@@ -402,10 +400,9 @@ The SDK includes a comprehensive end-to-end test that runs against a Surfpool ma
 | Vault Swap Sell | Vault-routed Raydium sell (tokens → SOL via DEX) |
 | Withdraw Tokens | Authority withdraws tokens from vault ATA |
 | Harvest Fees | Auto-discovery of token accounts with withheld fees, treasury balance increase |
-| Auto Buyback | Pre-check validation (price, cooldown, supply floor), buyback execution, cooldown enforcement |
-| Protocol Rewards | Vault-routed epoch reward claim (fee-funded, 10 SOL min volume) |
+| Protocol Rewards | Vault-routed epoch reward claim (fee-funded, 2 SOL min volume) |
 
-Expected result: **32 passed, 0 failed** (mainnet fork). Tiers test covers harvest + buyback across Spark/Flame/Torch.
+Expected result: **29 passed, 0 failed** (mainnet fork). Tiers test covers harvest + lending across Spark/Flame/Torch.
 
 ---
 
@@ -425,9 +422,12 @@ Expected result: **32 passed, 0 failed** (mainnet fork). Tiers test covers harve
 | 3.5.1 | **V25 Pump-Style Token Distribution.** New virtual reserve model: IVS = bonding_target/8 (6.25-25 SOL), IVT = 900M tokens, ~81x multiplier across all tiers. Reverted V24 per-tier treasury fees to flat 20%→5% for all tiers. 35 Kani proof harnesses (up from 26), including 7 new V25 supply conservation and excess burn proofs. IDL updated to v3.5.1. |
 | 3.6.8 | **V26-V28 + Dynamic Network.** Permissionless DEX migration (`buildMigrateTransaction`) — two-step fund WSOL + migrate in one tx. Pool account validation hardened (V27 — AMM config constrained, pool ownership verified). `update_authority` admin instruction (V28). Critical lending `sol_balance` accounting fix. Lending utilization cap properly applied (50% - total_sol_lent). Live Raydium pool price for migrated tokens. Dynamic network detection (`globalThis.__TORCH_NETWORK__` / `process.env.TORCH_NETWORK`). Pre-migration buyback removed. IDL updated to v3.6.0. |
 | 3.7.0 | **V28 update_authority Removed + V27 Treasury Lock.** Removed `update_authority` instruction — authority transfer now done at deployment via multisig tooling. 27 instructions total (down from 28). Minimal admin surface: only `initialize` and `update_dev_wallet` require authority. V27 Treasury Lock: 250M tokens (25%) locked in TreasuryLock PDA at creation; 750M (75%) for bonding curve. IVS = 3BT/8, IVT = 756.25M tokens — 13.44x multiplier. PDA-based Raydium pool validation replaces runtime validation. Pre-migration buyback handler removed. 36 Kani proof harnesses. IDL updated to v3.7.0. |
-| 3.7.1 | **Treasury Cranks.** New `buildAutoBuybackTransaction` — permissionless treasury buyback on Raydium when price < 80% of baseline. Burns bought tokens. New `buildHarvestFeesTransaction` — permissionless Token-2022 transfer fee harvesting into treasury. New types: `AutoBuybackParams`, `HarvestFeesParams`. |
-| 3.7.2 | **Buyback Pre-Checks + Harvest Auto-Discovery.** `buildAutoBuybackTransaction` now validates all on-chain conditions client-side before building the tx: migration status, baseline initialization, cooldown interval, supply floor (500M), price vs threshold (80% of baseline), minimum buyback amount (0.01 SOL). Descriptive errors for each failure. `buildHarvestFeesTransaction` auto-discovers source accounts with withheld fees via `getTokenLargestAccounts` + `unpackAccount` + `getTransferFeeAmount`. New optional `sources` field for explicit accounts. Dynamic compute budget (200k + 20k per source). Graceful RPC fallback when `getTokenLargestAccounts` is unsupported (e.g. Surfpool). E2E tests for harvest and buyback across all three test suites. |
+| 3.7.1 | **Treasury Cranks.** New `buildAutoBuybackTransaction` (removed in V33) — permissionless treasury buyback on Raydium. New `buildHarvestFeesTransaction` — permissionless Token-2022 transfer fee harvesting into treasury. New types: `HarvestFeesParams`. |
+| 3.7.2 | **Buyback Pre-Checks + Harvest Auto-Discovery.** Buyback pre-checks (removed in V33). `buildHarvestFeesTransaction` auto-discovers source accounts with withheld fees via `getTokenLargestAccounts` + `unpackAccount` + `getTransferFeeAmount`. New optional `sources` field for explicit accounts. Dynamic compute budget (200k + 20k per source). Graceful RPC fallback when `getTokenLargestAccounts` is unsupported (e.g. Surfpool). E2E tests for harvest across all three test suites. |
 | 3.7.3 | **`fetchWithFallback` resilience.** Improved metadata fetch with gateway URL fallback. |
 | 3.7.6 | **V28 Migration Payer Reimbursement.** `buildBuyTransactionInternal` auto-migrate path collapsed into a single `buildMigrateTransaction()` call — program now handles treasury reimbursement internally (payer fronts ~1 SOL, treasury reimburses exact cost, net 0). Removed ~50 lines of inline migration builder. IDL updated to v3.7.1 (program v3.7.1: `MIN_MIGRATION_SOL` replaces `RAYDIUM_POOL_CREATION_FEE`, payer lamport snapshot + reimbursement in migration handler). 36 Kani proofs all passing on v3.7.1. |
-| 3.7.10 | **V20 Swap Fees to SOL.** New `buildSwapFeesToSolTransaction` — bundles `create_idempotent(treasury_wsol)` + `harvest_fees` + `swap_fees_to_sol` in one atomic tx. Sells harvested Token-2022 transfer fee tokens back to SOL via Raydium CPMM. Treasury PDA signs the swap, WSOL unwrapped to SOL, proceeds added to `treasury.sol_balance` and tracked in `treasury.harvested_fees`. New type: `SwapFeesToSolParams`. Fixed `validate_pool_accounts` vault ordering bug in `swap_fees_to_sol` and `execute_auto_buyback` — vaults now passed in pool order (by mint pubkey) instead of swap direction. IDL updated to v3.7.10 (28 instructions). |
-| 3.7.17 | **V29 On-Chain Metadata + Loan Position Scanner.** Metaplex `buildAddMetadataTransaction` removed (temporary backfill complete — all active tokens now use Token-2022 metadata extensions). New `getTokenMetadata(connection, mint)` read-only function returns `{ name, symbol, uri, mint }` from on-chain Token-2022 metadata. Transfer fee updated from 1% to 0.1% on-chain (`TRANSFER_FEE_BPS` 100→10). New `getAllLoanPositions(connection, mint)` scans all `LoanPosition` accounts for a token via `getProgramAccounts` with discriminator + mint memcmp filters, computes health status (healthy/at_risk/liquidatable) using Raydium pool price, returns sorted by liquidation risk. New types: `TokenMetadataResult`, `LoanPositionWithKey`, `AllLoanPositionsResult`. IDL updated to v3.7.17 (28 instructions). |
+| 3.7.10 | **V20 Swap Fees to SOL.** New `buildSwapFeesToSolTransaction` — bundles `create_idempotent(treasury_wsol)` + `harvest_fees` + `swap_fees_to_sol` in one atomic tx. Sells harvested Token-2022 transfer fee tokens back to SOL via Raydium CPMM. Treasury PDA signs the swap, WSOL unwrapped to SOL, proceeds added to `treasury.sol_balance` and tracked in `treasury.harvested_fees`. New type: `SwapFeesToSolParams`. Fixed `validate_pool_accounts` vault ordering bug in `swap_fees_to_sol` — vaults now passed in pool order (by mint pubkey) instead of swap direction. IDL updated to v3.7.10. |
+| 3.7.17 | **V29 On-Chain Metadata + Loan Position Scanner.** Metaplex `buildAddMetadataTransaction` removed (temporary backfill complete — all active tokens now use Token-2022 metadata extensions). New `getTokenMetadata(connection, mint)` read-only function returns `{ name, symbol, uri, mint }` from on-chain Token-2022 metadata. Transfer fee updated from 1% to 0.1% on-chain (`TRANSFER_FEE_BPS` 100→10). New `getAllLoanPositions(connection, mint)` scans all `LoanPosition` accounts for a token via `getProgramAccounts` with discriminator + mint memcmp filters, computes health status (healthy/at_risk/liquidatable) using Raydium pool price, returns sorted by liquidation risk. New types: `TokenMetadataResult`, `LoanPositionWithKey`, `AllLoanPositionsResult`. IDL updated to v3.7.17. |
+| 3.7.22 | **V33 Buyback Removed, Lending Extended.** Removed `buildAutoBuybackTransaction` and `AutoBuybackParams`. `execute_auto_buyback` instruction removed from on-chain program (27 instructions). Lending utilization cap 50%→70%. Treasury simplified to: fee harvest → sell → SOL → lending yield + epoch rewards. IDL updated to v3.7.7. |
+| 3.7.23 | **V34 Creator Revenue.** Three creator income streams: (1) bonding SOL share 0.2%→1% carved from treasury rate, growing linearly with reserves; (2) post-migration fee split 85% treasury / 15% creator on `swap_fees_to_sol`; (3) star payout ~40 SOL at 2,000 stars. `creator` account added to `buy` and `swap_fees_to_sol` instructions, validated against `bonding_curve.creator`. `calculateTokensOut` returns `solToCreator` and `creatorRateBps`. Star cost 0.05→0.02 SOL. Transfer fee 3→4 bps (0.04%). Protocol fee split 75/25→90/10 (treasury/dev). Volume eligibility 10→2 SOL. 43 Kani proofs (4 new: creator share bounds, conservation, fee split). IDL updated to v3.7.8. |
+| 3.7.25 | **V34 Optional Account on Sell.** no functional changes |

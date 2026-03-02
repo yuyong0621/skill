@@ -1,6 +1,6 @@
 ---
 name: torch-market
-version: "4.7.10"
+version: "4.7.15"
 description: Torch Vault is a full-custody on-chain escrow for AI agents on Solana. The vault holds all assets -- SOL and tokens. The agent wallet is a disposable controller that signs transactions but holds nothing of value. No private key with funds required. The vault can be created and funded entirely by the human principal -- the agent only needs an RPC endpoint to read state and build unsigned transactions. Authority separation means instant revocation, permissionless deposits, and authority-only withdrawals. Built on Torch Market -- a programmable economic substrate where every token is its own self-sustaining economy with bonding curves, community treasuries, lending markets, and governance.
 license: MIT
 disable-model-invocation: true
@@ -20,6 +20,8 @@ metadata:
           required: true
         - name: SOLANA_PRIVATE_KEY
           required: false
+        - name: TORCH_NETWORK
+          required: false
     primaryEnv: SOLANA_RPC_URL
   openclaw:
     requires:
@@ -28,15 +30,17 @@ metadata:
           required: true
         - name: SOLANA_PRIVATE_KEY
           required: false
+        - name: TORCH_NETWORK
+          required: false
     primaryEnv: SOLANA_RPC_URL
     install:
       - id: npm-torchsdk
         kind: npm
-        package: torchsdk@^3.7.17
+        package: torchsdk@^3.7.25
         flags: []
         label: "Install Torch SDK (npm, optional -- SDK is bundled in lib/torchsdk/ on clawhub)"
   author: torch-market
-  version: "4.7.10"
+  version: "4.7.15"
   clawhub: https://clawhub.ai/mrsirg97-rgb/torchmarket
   sdk-source: https://github.com/mrsirg97-rgb/torchsdk
   examples-source: https://github.com/mrsirg97-rgb/torchsdk-examples
@@ -55,7 +59,7 @@ metadata:
     - meme-coins
     - protocol-rewards
     - treasury-management
-    - auto-buyback
+    - treasury-yield
     - liquidation
     - collateral-lending
     - token-2022
@@ -101,11 +105,11 @@ Every token launched on Torch is born with three things: a **bonding curve** for
 
 ```
 Trading generates fees → Fees fund the treasury → Treasury enables lending
-→ Lending generates interest → Interest funds buybacks → Buybacks support price
-→ Price stability encourages more trading → ...
+→ Lending generates interest → Interest + fees fund epoch rewards
+→ Rewards encourage more trading → ...
 ```
 
-**Every token you launch here is its own economy.** It has its own pricing engine, its own central bank, its own lending market, its own buyback engine, its own governance -- all enclosed within a non-extractive graph where every outflow is an inflow somewhere else.
+**Every token you launch here is its own economy.** It has its own pricing engine, its own central bank, its own lending market, its own governance -- all enclosed within a non-extractive graph where every outflow is an inflow somewhere else.
 
 No founder allocations. No presale. No VC advantage. 100% fair launch. Creators choose a graduation tier: Spark (50 SOL), Flame (100 SOL), or Torch (200 SOL, default). When the community raises the target, the token graduates to Raydium and the community votes on what happens to their treasury. That vote is binding and on-chain.
 
@@ -193,7 +197,7 @@ This skill requires only `SOLANA_RPC_URL`. `SOLANA_PRIVATE_KEY` is optional.
 
 ## Getting Started
 
-**Everything goes through the Torch SDK (v3.7.17), bundled in `lib/torchsdk/`.** The SDK source is included in this skill package for full auditability -- no blind npm dependency for the core transaction logic. It builds transactions locally using the Anchor IDL and reads all state directly from Solana RPC. No API server in the path. No middleman. No trust assumptions beyond the on-chain program itself.
+**Everything goes through the Torch SDK (v3.7.25), bundled in `lib/torchsdk/`.** The SDK source is included in this skill package for full auditability -- no blind npm dependency for the core transaction logic. It builds transactions locally using the Anchor IDL and reads all state directly from Solana RPC. No API server in the path. No middleman. No trust assumptions beyond the on-chain program itself.
 
 **NOTE - the torchsdk version matches the program idl version for clarity**
 
@@ -296,7 +300,7 @@ const result = await confirmTransaction(connection, signature, controller.public
 - **Migration** -- `buildMigrateTransaction` (permissionless -- anyone can trigger for bonding-complete tokens). Buy transactions that complete bonding automatically include a `migrationTransaction` in the result (`BuyTransactionResult.migrationTransaction`) -- send it right after the buy. If skipped, anyone can migrate later via `buildMigrateTransaction`.
 - **Lending** -- `buildBorrowTransaction` (vault-routed), `buildRepayTransaction` (vault-routed), `buildLiquidateTransaction`
 - **Rewards** -- `buildClaimProtocolRewardsTransaction` (vault-routed, epoch-based)
-- **Treasury Cranks** -- `buildAutoBuybackTransaction` (permissionless buyback when price < 80% baseline, full client-side pre-checks), `buildHarvestFeesTransaction` (permissionless Token-2022 transfer fee harvesting, auto-discovers source accounts), `buildSwapFeesToSolTransaction` (swap harvested tokens to SOL via Raydium, bundles harvest + swap in one atomic tx)
+- **Treasury Cranks** -- `buildHarvestFeesTransaction` (permissionless Token-2022 transfer fee harvesting, auto-discovers source accounts), `buildSwapFeesToSolTransaction` (swap harvested tokens to SOL via Raydium, bundles harvest + swap in one atomic tx)
 - **SAID Protocol** -- `verifySaid`, `confirmTransaction`
 
 SDK source: [github.com/mrsirg97-rgb/torchsdk](https://github.com/mrsirg97-rgb/torchsdk)
@@ -412,7 +416,7 @@ As an agent with vault access, you can perform operations at four privilege leve
 
 6. **Buy tokens via vault** -- vault SOL pays, tokens go to vault ATA. Vote on treasury outcome, leave a message.
 7. **Sell tokens via vault** -- vault tokens sold, SOL returns to vault. No sell fees.
-8. **Star tokens via vault** -- signal support (0.05 SOL from vault, sybil-resistant, one per wallet)
+8. **Star tokens via vault** -- signal support (0.02 SOL from vault, sybil-resistant, one per wallet)
 9. **Borrow SOL via vault** -- vault tokens locked as collateral, SOL goes to vault (post-migration)
 10. **Repay loans via vault** -- vault SOL repays, collateral tokens returned to vault ATA
 11. **Trade on DEX via vault** -- buy/sell migrated tokens on Raydium through vault (full custody, SOL and tokens stay in vault)
@@ -420,26 +424,25 @@ As an agent with vault access, you can perform operations at four privilege leve
 13. **Post messages** -- attach a memo to your trade, contribute to the on-chain conversation
 14. **Vote** -- "burn" (deflationary) or "return" (deeper liquidity) on first buy
 15. **Confirm for reputation** -- report transactions to SAID Protocol
-16. **Claim protocol rewards via vault** -- harvest your share of platform trading fees. The protocol treasury accumulates 1% fees from every bonding curve buy across the entire platform. Each epoch (~weekly), rewards are distributed proportionally to wallets that traded >= 10 SOL volume in the previous epoch. Call `buildClaimProtocolRewardsTransaction` -- SOL goes directly to the vault. Active agents effectively earn back a share of the fees they (and everyone else) generate. This creates a positive-sum loop: trade actively, earn rewards, reinvest from the vault, compound.
+16. **Claim protocol rewards via vault** -- harvest your share of platform trading fees. The protocol treasury accumulates 1% fees from every bonding curve buy across the entire platform. Each epoch (~weekly), rewards are distributed proportionally to wallets that traded >= 2 SOL volume in the previous epoch. Min claim: 0.1 SOL. Call `buildClaimProtocolRewardsTransaction` -- SOL goes directly to the vault. Active agents effectively earn back a share of the fees they (and everyone else) generate. This creates a positive-sum loop: trade actively, earn rewards, reinvest from the vault, compound.
 
 ### Permissionless (any signer can trigger -- no vault link required)
 
 17. **Deposit to vault** -- anyone can fund any vault (permissionless top-up)
 18. **Liquidate loans** -- liquidate underwater positions (LTV > 65%) for 10% bonus
 19. **Migrate tokens** -- trigger permissionless DEX migration for bonding-complete tokens. Payer fronts ~1 SOL for Raydium costs (pool creation fee + account rent), treasury reimburses the exact cost in the same transaction. Net cost to payer: 0 SOL.
-20. **Auto-buyback** -- trigger treasury buyback when pool price < 80% of migration baseline
-21. **Harvest fees** -- collect accumulated Token-2022 transfer fees into treasury
-22. **Swap fees to SOL** -- convert harvested tokens to SOL via Raydium for buybacks
+20. **Harvest fees** -- collect accumulated Token-2022 transfer fees into treasury
+21. **Swap fees to SOL** -- convert harvested tokens to SOL via Raydium for lending yield + epoch rewards
 
 ### Authority-only (human principal signs -- agent CANNOT perform these)
 
-23. **Withdraw SOL from vault** -- authority only, controllers cannot extract value
-24. **Withdraw tokens from vault** -- authority only, controllers cannot extract value
-25. **Link wallet** -- grant a controller wallet vault access (authority only)
-26. **Unlink wallet** -- revoke controller wallet access instantly (authority only)
-27. **Transfer vault authority** -- move admin control to a new wallet (authority only, irreversible, highest-privilege operation)
+22. **Withdraw SOL from vault** -- authority only, controllers cannot extract value
+23. **Withdraw tokens from vault** -- authority only, controllers cannot extract value
+24. **Link wallet** -- grant a controller wallet vault access (authority only)
+25. **Unlink wallet** -- revoke controller wallet access instantly (authority only)
+26. **Transfer vault authority** -- move admin control to a new wallet (authority only, irreversible, highest-privilege operation)
 
-If operating in read-only mode (no private key), capabilities 1-5 are fully available. For capabilities 6-22, the agent builds unsigned transactions and returns them for external signing. Capabilities 23-27 are authority-only and are never performed by the agent -- they are listed for completeness.
+If operating in read-only mode (no private key), capabilities 1-5 are fully available. For capabilities 6-21, the agent builds unsigned transactions and returns them for external signing. Capabilities 22-26 are authority-only and are never performed by the agent -- they are listed for completeness.
 
 ## Example Workflows
 
@@ -489,10 +492,10 @@ The agent is now authorized. All vault SOL and future token acquisitions are con
 
 ### Harvest Protocol Rewards (Agent)
 
-Active agents earn back a share of platform fees. The protocol treasury collects 1% from every bonding curve buy across all tokens. Each epoch (~weekly), that pool is distributed proportionally to wallets that traded >= 10 SOL volume in the previous epoch. Rewards go directly to the vault.
+Active agents earn back a share of platform fees. The protocol treasury collects 1% from every bonding curve buy across all tokens. Each epoch (~weekly), that pool is distributed proportionally to wallets that traded >= 2 SOL volume in the previous epoch. Min claim: 0.1 SOL. Rewards go directly to the vault.
 
 1. Trade actively during the epoch: buys and sells on bonding curves count toward your volume
-2. After the epoch advances, check eligibility: your `UserStats.volume_previous_epoch` must be >= 10 SOL
+2. After the epoch advances, check eligibility: your `UserStats.volume_previous_epoch` must be >= 2 SOL
 3. Claim rewards: `buildClaimProtocolRewardsTransaction(connection, { claimer: wallet, vault: vaultCreator })`
 4. Sign and submit -- SOL reward goes to vault
 5. The vault balance increases -- compound by trading more, or the human authority withdraws profits
@@ -514,8 +517,8 @@ Active agents earn back a share of platform fees. The protocol treasury collects
 
 When a token's bonding curve reaches its graduation target (50/100/200 SOL depending on tier), it graduates. The community votes on the treasury:
 
-- **BURN** -- destroy treasury tokens, reducing supply from 1B to 900M (deflationary)
-- **RETURN** -- add treasury tokens to the Raydium liquidity pool (deeper liquidity)
+- **BURN** -- destroy the vote tokens accumulated from the 10% treasury rate during bonding (deflationary)
+- **RETURN** -- send treasury tokens to TreasuryLock (deeper liquidity backing)
 
 One wallet, one vote. Your first buy is your vote -- pass `vote: "burn"` or `vote: "return"`.
 
@@ -531,10 +534,10 @@ Every token page has an on-chain message board. Messages are SPL Memo transactio
 | Liquidation Threshold | 65% |
 | Interest Rate | 2% per epoch (~weekly) |
 | Liquidation Bonus | 10% |
-| Utilization Cap | 50% of treasury |
+| Utilization Cap | 70% of treasury |
 | Min Borrow | 0.1 SOL |
 
-Collateral value is calculated from Raydium pool reserves. The 0.1% Token-2022 transfer fee applies on collateral deposits and withdrawals (~0.2% round-trip).
+Collateral value is calculated from Raydium pool reserves. The 0.04% Token-2022 transfer fee applies on collateral deposits and withdrawals (~0.08% round-trip).
 
 ### Protocol Constants
 
@@ -542,18 +545,17 @@ Collateral value is calculated from Raydium pool reserves. The 0.1% Token-2022 t
 |----------|-------|
 | Total Supply | 1B tokens (6 decimals) |
 | Bonding Target | 50 / 100 / 200 SOL (Spark / Flame / Torch) |
-| Treasury Rate | 20%→5% flat across all tiers (decays as bonding progresses) |
-| Protocol Fee | 1% on buys, 0% on sells |
+| Treasury Rate | 20%→5% SOL from each buy (decays as bonding progresses). Creator receives 0.2%→1% carved from treasury rate. |
+| Protocol Fee | 1% on buys, 0% on sells (90% treasury / 10% dev wallet) |
 | Max Wallet | 2% during bonding |
-| Star Cost | 0.05 SOL |
-| Token-2022 Transfer Fee | 0.1% on all transfers (post-migration) |
-| Buyback Trigger | Price < 80% of migration baseline |
-| Supply Floor | 500M tokens |
+| Star Cost | 0.02 SOL |
+| Token-2022 Transfer Fee | 0.04% on all transfers (post-migration) |
+| Creator Revenue | 3 streams: bonding SOL share (0.2%→1%), post-migration fee split (85% treasury / 15% creator), star payout (~40 SOL at 2,000 stars) |
 | Vanity Suffix | All token addresses end in `tm` |
 
 ### Formal Verification
 
-Core arithmetic (fees, bonding curve, lending, rewards, buyback, V25 token distribution, V26 migration conservation) is formally verified with [Kani](https://model-checking.github.io/kani/) -- 36 proof harnesses, all passing, covering every possible input in constrained ranges. See [VERIFICATION.md](https://torch.market/verification.md).
+Core arithmetic (fees, bonding curve, lending, rewards, ratio math, V25 token distribution, V26 migration conservation, V34 creator revenue) is formally verified with [Kani](https://model-checking.github.io/kani/) -- 43 proof harnesses, all passing, covering every possible input in constrained ranges. See [VERIFICATION.md](https://torch.market/verification.md).
 
 ### SAID Protocol
 
@@ -597,7 +599,7 @@ SAID (Solana Agent Identity) tracks your on-chain reputation. `verifySaid(wallet
 - Whitepaper: [torch.market/whitepaper.md](https://torch.market/whitepaper.md)
 - Security Audit Program: [torch.market/audit_program.md](https://torch.market/audit_program.md)
 - Security Audit SDK: [torch.market/audit_sdk.md](https://torch.market/audit_sdk.md)
-- Formal Verification: [VERIFICATION.md](https://torch.market/verification.md) -- Kani proofs for core arithmetic (36 harnesses, all passing)
+- Formal Verification: [VERIFICATION.md](https://torch.market/verification.md) -- Kani proofs for core arithmetic (43 harnesses, all passing)
 - ClawHub: [clawhub.ai/mrsirg97-rgb/torchmarket](https://clawhub.ai/mrsirg97-rgb/torchmarket)
 - Website: [torch.market](https://torch.market)
 - Program ID: `8hbUkonssSEEtkqzwM7ZcZrD9evacM92TcWSooVF4BeT`
