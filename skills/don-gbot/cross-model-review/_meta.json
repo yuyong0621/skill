@@ -1,13 +1,18 @@
 {
   "owner": "don-gbot",
   "slug": "cross-model-review",
-  "displayName": "Cross-Model Review",
+  "displayName": "Cross Model Review",
   "latest": {
-    "version": "1.2.0",
-    "publishedAt": 1772045627893,
-    "commit": "https://github.com/openclaw/skills/commit/77cd43b099c5713e2eb98cdc3bc1d4812186f3a1"
+    "version": "2.0.1",
+    "publishedAt": 1772416720597,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.2.0",
+      "publishedAt": 1772045627893,
+      "commit": "https://github.com/openclaw/skills/commit/77cd43b099c5713e2eb98cdc3bc1d4812186f3a1"
+    },
     {
       "version": "1.1.0",
       "publishedAt": 1771739814374,
