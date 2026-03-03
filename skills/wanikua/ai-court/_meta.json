@@ -3,11 +3,16 @@
   "slug": "ai-court",
   "displayName": "Ai Court",
   "latest": {
-    "version": "1.4.0",
-    "publishedAt": 1772355755023,
-    "commit": "https://github.com/openclaw/skills/commit/daa6d66cb93ddecb4eda4a99b2026d95950fb133"
+    "version": "1.5.0",
+    "publishedAt": 1772375113525,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.4.0",
+      "publishedAt": 1772355755023,
+      "commit": "https://github.com/openclaw/skills/commit/daa6d66cb93ddecb4eda4a99b2026d95950fb133"
+    },
     {
       "version": "1.1.0",
       "publishedAt": 1772294006279,
