@@ -1,0 +1,11 @@
+{
+  "owner": "anmolnagpal",
+  "slug": "terraform-reviewer",
+  "displayName": "Terraform Reviewer",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772538238626,
+    "commit": null
+  },
+  "history": []
+}
