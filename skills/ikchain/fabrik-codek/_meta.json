@@ -3,11 +3,16 @@
   "slug": "fabrik-codek",
   "displayName": "Fabrik Codek",
   "latest": {
-    "version": "1.8.0",
-    "publishedAt": 1772213774139,
-    "commit": "https://github.com/openclaw/skills/commit/3792575629ff02aef7eb949ede929c47d0d9955b"
+    "version": "1.10.0",
+    "publishedAt": 1772381012832,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.8.0",
+      "publishedAt": 1772213774139,
+      "commit": "https://github.com/openclaw/skills/commit/3792575629ff02aef7eb949ede929c47d0d9955b"
+    },
     {
       "version": "1.7.1",
       "publishedAt": 1772140040458,
