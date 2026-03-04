@@ -1,0 +1,11 @@
+{
+  "owner": "domilin",
+  "slug": "marsbit-news-skill",
+  "displayName": "marsbit-news",
+  "latest": {
+    "version": "1.0.4",
+    "publishedAt": 1772611627620,
+    "commit": null
+  },
+  "history": []
+}
