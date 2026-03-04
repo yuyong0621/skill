@@ -1,7 +1,7 @@
 ---
 name: stringclaw
-description: "Make real phone calls to your users via Stringclaw voice AI"
-version: 0.0.1
+description: "Make real phone calls via Stringclaw. Use when the user says 'call me', 'give me a call', 'phone me', or wants to talk by voice. Initiates an outbound voice call that connects them to a live session with you."
+version: 0.0.9
 metadata:
   openclaw:
     emoji: "📞"
@@ -15,65 +15,85 @@ metadata:
         bins: ["stringclaw-bridge"]
 ---
 
-## stringclaw
+## Making a call
 
-Make real phone calls to your users via Stringclaw.
+### 1. Ensure gateway is configured for voice
 
-When a user asks you to call them (e.g. "give me a call", "call me", "phone me"),
-use this skill to initiate an outbound voice call. The call connects them to a
-live voice session with you — your full tools and memory are available during the call.
+Run these once — they're no-ops if already set:
 
-### Before making a call
-
-The Stringclaw bridge must be running on the host machine. It connects your local
-OpenClaw agent to Stringclaw's voice infrastructure.
-
-Check if it's already running:
-```
-pgrep -f stringclaw-bridge
+```bash
+openclaw config set gateway.mode local
+openclaw config set gateway.http.endpoints.chatCompletions.enabled true
 ```
 
-If not running, start it in the background:
-```
-STRINGCLAW_API_KEY=$STRINGCLAW_API_KEY stringclaw-bridge &
-```
+If auth isn't set up yet:
 
-The bridge will keep running until the process is stopped.
-
-### Making a call
-
-Send a POST request:
-
-```
-POST https://exciting-ptarmigan-223.convex.cloud/api/call
-Authorization: Bearer $STRINGCLAW_API_KEY
-Content-Type: application/json
-
-{
-  "phoneNumber": "+1234567890"
-}
+```bash
+openclaw config set gateway.auth.mode token
+openclaw config set gateway.auth.token "$(openssl rand -hex 24)"
 ```
 
-The `phoneNumber` field is optional — if omitted, the call goes to the number
-configured in the user's Stringclaw dashboard.
+Then restart: `openclaw gateway restart`
 
-### Response
+### 2. Create the voice agent (if it doesn't exist)
 
-**Success (200):**
-```json
-{ "success": true, "callId": "..." }
+```bash
+openclaw agents add voice --model gemini-3.1-flash-lite-preview --non-interactive
 ```
 
-**Errors:**
-- `401` — Invalid or missing API key
-- `402` — No minutes remaining. Tell the user to top up at stringclaw.com
-- `400` — No phone number provided and none configured
+If that errors because it already exists, skip this step.
 
-### Example
+### 3. Read the gateway token
 
-User: "Hey, can you give me a call?"
+```bash
+openclaw config get gateway.auth.token
+```
 
-1. Ensure the bridge is running (check with `pgrep`, start if needed).
-2. Call the Stringclaw API with the user's phone number (if known) or without it.
-3. If successful, reply: "Calling you now! Pick up in a moment."
-4. If 402, reply: "You're out of Stringclaw minutes. Top up at stringclaw.com."
+### 4. Start the bridge
+
+```bash
+OPENCLAW_GATEWAY_TOKEN=<token> stringclaw-bridge serve > /tmp/stringclaw-bridge.log 2>&1 &
+sleep 8
+cat /tmp/stringclaw-bridge.log
+```
+
+Confirm the log shows **"Bridge ready"** before proceeding. If it shows an error, check troubleshooting below.
+
+### 5. Make the call
+
+```bash
+stringclaw-bridge call
+```
+
+If successful, tell the user: "Calling you now — pick up in a moment!"
+
+### Output
+
+**Success:** `{"success":true,"callId":"..."}`
+
+**Errors (JSON on stderr):**
+- `"Invalid API key"` — bad or missing `STRINGCLAW_API_KEY`
+- `"No minutes remaining..."` — top up at stringclaw.com
+- `"No phone number configured..."` — set at stringclaw.com/dashboard/settings
+- `"Bridge is not running..."` — start the bridge first (step 4)
+
+### Troubleshooting
+
+**Bridge log shows "Gateway 401":**
+Wrong token. Re-read with `openclaw config get gateway.auth.token`.
+
+**Bridge log shows "Gateway 405":**
+Chat completions not enabled. Run:
+```bash
+openclaw config set gateway.http.endpoints.chatCompletions.enabled true
+openclaw gateway restart
+```
+
+**Call connects but AI never responds:**
+Test the gateway directly:
+```bash
+curl -X POST http://127.0.0.1:18789/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"model":"voice","messages":[{"role":"user","content":"hi"}],"stream":true}'
+```
