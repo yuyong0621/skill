@@ -231,7 +231,7 @@ python3 skills/movie/movie.py city '{"parentid":"0"}'
 
 ## 常见错误码
 
-来自 [官方电影影讯文档](https://www.jisuapi.com/api/movie/) 的业务错误码：
+来自 [极速数据电影影讯文档](https://www.jisuapi.com/api/movie/) 的业务错误码：
 
 | 代号 | 说明        |
 |------|-------------|
