@@ -3,9 +3,15 @@
   "slug": "deeprecall",
   "displayName": "DeepRecall",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1772283880923,
-    "commit": "https://github.com/openclaw/skills/commit/cc977382eb15a04533be44a61648c83484654cfa"
+    "version": "1.0.3",
+    "publishedAt": 1772570469597,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1772283880923,
+      "commit": "https://github.com/openclaw/skills/commit/cc977382eb15a04533be44a61648c83484654cfa"
+    }
+  ]
 }
