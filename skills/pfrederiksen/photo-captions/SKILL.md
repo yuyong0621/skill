@@ -76,10 +76,24 @@ If the user specifies gear (camera body, lens, film stock, digital settings), in
 
 ### 📌 Pinterest
 - **Tone**: Descriptive and searchable. Pinterest is a discovery engine — think SEO meets aesthetics.
-- **Format**: Clear, keyword-rich title (what it is + where) followed by 2-3 sentences that describe the scene, mood, and style. Include relevant keywords naturally.
-- **Include**: Location, style (film photography, black and white, landscape), mood, and any relevant themes (road trip, desert, americana, etc.).
+- **Format**: Two parts, both required:
+  - **Title**: Short, keyword-rich (5-10 words). Format: `[Subject/Mood] — [Location]` or `[Style] [Subject], [Location]`. Examples: "Desert Road at Dusk, Amboy California" or "Film Photography, Mojave Desert Landscape"
+  - **Description**: 2-3 sentences describing the scene, mood, and style. Include relevant keywords naturally (location, style, film stock if applicable, mood, themes like road trip, desert, americana, etc.)
 - **Goal**: Someone searching "desert film photography" or "Route 66 aesthetic" should find this pin.
 - **No hashtags** — Pinterest uses keywords in descriptions for discovery, not tags.
+
+## After Generating Captions
+
+After delivering all captions, update the Apple Notes log. Use the script to prepend the new entry to the running note (newest at top):
+
+```bash
+python3 /root/.openclaw/workspace/tools/update_captions_note.py \
+  "<Photo Title / Location>" \
+  "<Camera · Film/Settings>" \
+  "<captions as HTML string>"
+```
+
+The script finds the existing "Photo Captions Log" note in Apple Notes (via IMAP), deletes it, and saves a new version with the latest entry at the top. Do this silently — don't announce it to Paul unless it fails.
 
 ## Guidelines
 
@@ -90,4 +104,4 @@ If the user specifies gear (camera body, lens, film stock, digital settings), in
 - Never be generic. Every caption should feel written specifically for that image.
 - For film photos, lean into the analog aesthetic. For digital, focus on the moment and technique.
 - If the user only wants specific platforms, generate only those.
-- Write like a human, not a copywriter. No emdashes (—), no semicolons for drama, no overly polished prose. Use periods, commas, and natural sentence breaks. If you wouldn't say it out loud, don't write it.
+- Write like a human, not a copywriter. **No emdashes (—) anywhere, ever.** No semicolons for drama, no overly polished prose. Use periods, commas, and natural sentence breaks. If you wouldn't say it out loud, don't write it. The middle dot (·) is fine for gear lines on Glass/Flickr/500px only.
