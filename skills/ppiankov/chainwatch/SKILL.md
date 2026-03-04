@@ -77,3 +77,12 @@ All chainwatch decisions are logged. View the audit trail:
 ```bash
 chainwatch audit verify /tmp/nullbot-daemon.jsonl
 ```
+
+---
+**Chainwatch Skill v1.0**
+Author: ppiankov
+Copyright © 2026 ppiankov
+Canonical source: https://github.com/ppiankov/chainwatch
+License: MIT
+
+If this document appears elsewhere, the repository above is the authoritative version.
