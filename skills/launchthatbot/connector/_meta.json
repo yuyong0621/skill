@@ -1,0 +1,11 @@
+{
+  "owner": "launchthatbot",
+  "slug": "connector",
+  "displayName": "Connector",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1772567285019,
+    "commit": null
+  },
+  "history": []
+}
