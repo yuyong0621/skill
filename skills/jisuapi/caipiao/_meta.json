@@ -1,0 +1,11 @@
+{
+  "owner": "jisuapi",
+  "slug": "caipiao",
+  "displayName": "彩票开奖查询 - Chinese Lottery Drawing Inquiry",
+  "latest": {
+    "version": "1.0.1",
+    "publishedAt": 1772534423437,
+    "commit": null
+  },
+  "history": []
+}
