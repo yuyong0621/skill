@@ -1,0 +1,11 @@
+{
+  "owner": "jisuapi",
+  "slug": "driverexam",
+  "displayName": "驾考题库 - Driver's License Exam",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772607195840,
+    "commit": null
+  },
+  "history": []
+}
