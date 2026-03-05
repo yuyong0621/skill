@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export GOG_KEYRING_PASSWORD="${GOG_KEYRING_PASSWORD:-openclaw}"
+
 OUT_DIR="/home/delta/.openclaw/workspace/skills/gmail-secretary/references"
 OUT="$OUT_DIR/voice.md"
 mkdir -p "$OUT_DIR"
