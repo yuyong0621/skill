@@ -1,0 +1,11 @@
+{
+  "owner": "googleworkspace-bot",
+  "slug": "gws-events",
+  "displayName": "Gws Events",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772670416872,
+    "commit": null
+  },
+  "history": []
+}
