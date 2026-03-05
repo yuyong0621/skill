@@ -1,0 +1,11 @@
+{
+  "owner": "samwei12",
+  "slug": "git-sync-daemon",
+  "displayName": "Git Sync Daemon",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772729241777,
+    "commit": null
+  },
+  "history": []
+}
