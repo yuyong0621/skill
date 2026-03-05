@@ -407,3 +407,118 @@ Complete glossary of SEO and GEO key performance indicators with calculation for
 - Organic traffic value represents how much you would need to spend on PPC to get the same traffic.
 - Useful for communicating SEO value to stakeholders who understand paid media budgets.
 - A site with $50K/month organic traffic value that spends $10K/month on SEO is getting a 5:1 return.
+
+---
+
+## SEO/GEO Metric Definitions and Benchmarks
+
+### Organic Search Metrics
+
+| Metric | Definition | Good Range | Warning | Source |
+|--------|-----------|-----------|---------|--------|
+| Organic sessions | Visits from organic search | Growing MoM | >10% decline | ~~analytics |
+| Keyword visibility | % of target keywords in top 100 | >60% | <40% | ~~SEO tool |
+| Average position | Mean position across tracked keywords | <20 | >30 | ~~search console |
+| Organic CTR | Clicks / impressions from search | >3% | <1.5% | ~~search console |
+| Pages indexed | Pages in Google index | Growing | Dropping | ~~search console |
+| Organic conversion rate | Conversions / organic sessions | >2% | <0.5% | ~~analytics |
+| Non-brand organic traffic | Organic traffic minus brand searches | >50% of total organic | <30% | ~~analytics |
+
+### GEO/AI Visibility Metrics
+
+| Metric | Definition | Good Range | Warning | Source |
+|--------|-----------|-----------|---------|--------|
+| AI citation rate | % of monitored queries citing your content | >20% | <5% | ~~AI monitor |
+| AI citation position | Average position in AI response citations | Top 3 sources | Not cited | ~~AI monitor |
+| AI answer coverage | % of your topics appearing in AI answers | Growing | Declining | ~~AI monitor |
+| Brand mention in AI | Times your brand is mentioned in AI responses | Growing | Zero | ~~AI monitor |
+
+### Domain Authority Metrics
+
+| Metric | Definition | Good Range | Warning | Source |
+|--------|-----------|-----------|---------|--------|
+| Domain Rating/Authority | Overall domain strength | Growing | Declining | ~~SEO tool |
+| Referring domains | Unique domains linking to you | Growing MoM | Loss >10% MoM | ~~link database |
+| Backlink growth rate | Net new backlinks per month | Positive | Negative trend | ~~link database |
+| Toxic link ratio | Toxic links / total links | <5% | >10% | ~~link database |
+
+## Reporting Templates by Audience
+
+### Executive Report (C-Suite / Leadership)
+
+**Focus:** Business outcomes, ROI, competitive position
+**Length:** 1 page + appendix
+**Frequency:** Monthly or Quarterly
+
+| Section | Content |
+|---------|---------|
+| Traffic & Revenue | Organic traffic trend + attributed revenue |
+| Competitive Position | Visibility share vs. top 3 competitors |
+| AI Visibility | AI citation trend and coverage |
+| Key Wins | Top 3 achievements with business impact |
+| Risks | Top 3 concerns with proposed mitigation |
+| Investment Ask | Resources needed for next period |
+
+### Marketing Team Report
+
+**Focus:** Channel performance, content effectiveness, technical health
+**Length:** 2-3 pages
+**Frequency:** Monthly
+
+| Section | Content |
+|---------|---------|
+| Keyword Performance | Rankings gained/lost, new keywords discovered |
+| Content Performance | Top pages by traffic, engagement, conversions |
+| Technical Health | Crawl errors, speed scores, indexation |
+| Backlink Profile | New links, lost links, quality assessment |
+| GEO Performance | AI citation changes, new citations |
+| Action Items | P0-P3 prioritized task list |
+
+### Technical SEO Report
+
+**Focus:** Crawlability, indexation, speed, errors
+**Length:** Detailed
+**Frequency:** Weekly or Bi-weekly
+
+| Section | Content |
+|---------|---------|
+| Crawl Stats | Pages crawled, errors, crawl budget usage |
+| Index Coverage | Indexed/excluded/errored pages |
+| Core Web Vitals | LCP, CLS, INP trends |
+| Error Log | New 4xx/5xx errors with resolution status |
+| Schema Validation | New warnings, rich result eligibility |
+| Technical Debt | Outstanding issues by priority |
+
+## Trend Analysis Framework
+
+### Period-Over-Period Analysis
+
+| Comparison | Best For | Limitation |
+|-----------|---------|-----------|
+| Week over week (WoW) | Detecting sudden changes | Noisy, affected by day-of-week patterns |
+| Month over month (MoM) | Identifying trends | Seasonal bias |
+| Year over year (YoY) | Accounting for seasonality | Does not reflect recent trajectory |
+| Rolling 30-day average | Smoothing noise | Lags behind real changes |
+
+### Trend Interpretation Guidelines
+
+| Pattern | Likely Cause | Recommended Action |
+|---------|-------------|-------------------|
+| Steady growth | Strategy is working | Continue, optimize high performers |
+| Sudden spike then drop | Viral content or algorithm volatility | Investigate cause, build on if repeatable |
+| Gradual decline | Content decay, competition, technical debt | Comprehensive audit needed |
+| Flat line | Plateau — existing strategy maxed out | New content areas, new link strategies |
+| Seasonal pattern | Industry/demand cycles | Plan content calendar around peaks |
+
+## SEO Attribution Guidance
+
+### Attribution Challenges in SEO
+
+| Challenge | Impact | Mitigation |
+|----------|--------|-----------|
+| Long conversion paths | SEO rarely gets last-touch credit | Use assisted conversions report |
+| Brand vs. non-brand | Brand searches inflate organic metrics | Always separate brand/non-brand |
+| Cross-device journeys | Mobile search to desktop conversion | Enable cross-device tracking |
+| SEO + paid overlap | Cannibalization or lift? | Test turning off paid for branded terms |
+| Content assists sales | Hard to attribute | Track content touches in CRM |
+

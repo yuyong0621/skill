@@ -3,11 +3,16 @@
   "slug": "performance-reporter",
   "displayName": "Performance Reporter",
   "latest": {
-    "version": "2.0.0",
-    "publishedAt": 1771042801475,
-    "commit": "https://github.com/openclaw/skills/commit/5c55ed654236d2d8c454b3beb39633950fbe9571"
+    "version": "3.0.0",
+    "publishedAt": 1772640441035,
+    "commit": null
   },
   "history": [
+    {
+      "version": "2.0.0",
+      "publishedAt": 1771042801475,
+      "commit": "https://github.com/openclaw/skills/commit/5c55ed654236d2d8c454b3beb39633950fbe9571"
+    },
     {
       "version": "1.0.3",
       "publishedAt": 1770824234444,
