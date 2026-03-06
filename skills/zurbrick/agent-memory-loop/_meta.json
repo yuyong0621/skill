@@ -1,0 +1,11 @@
+{
+  "owner": "zurbrick",
+  "slug": "agent-memory-loop",
+  "displayName": "Agent Memory Loop",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772737010899,
+    "commit": null
+  },
+  "history": []
+}
