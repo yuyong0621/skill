@@ -34,161 +34,26 @@ metadata:
 ## 🛠️ 功能模块 Features
 
 ### 1. 任务管理 Task Manager
-```python
-# 创建任务
-create_task(content="明天 9 点开会", time="2026-03-06 09:00", remind_before_minutes=15)
-
-# 查询任务
-list_tasks(date="today")
-
-# 完成任务
-complete_task(task_id="001")
-
-# 删除任务
-delete_task(task_id="001")
-```
+- 创建任务、查询任务、完成任务、删除任务
+- 支持定时提醒、飞书通知
 
 ### 2. 文档生成 Document Generator
-```python
-# 根据会议主题生成文档
-generate_doc(topic="人员密集度检测方案", time="15:00", attendees=["老高", "Monet"])
-
-# 支持格式：Markdown / Word / PDF
-```
+- 根据会议主题生成文档
+- 支持 Markdown / Word / PDF 格式
 
 ### 3. 文档修改 Document Modifier
-```python
-# 自然语言修改文档
-modify_doc(file_path="方案.md", instruction="强调一下成本优势")
+- 自然语言修改文档
+- 自动版本管理（v1 → v2）
 
-# 自动版本管理（v1 → v2）
-```
+### 4. 智能推荐 Smart Recommend
+- 根据会议主题推荐历史文档
+- 相似度匹配 + 时间衰减
 
-### 4. 文档搜索 Document Search
-```python
-# 关键词搜索历史文档
-search_docs(keyword="成本优势", category="技术方案")
-```
-
-### 5. 智能推荐 Smart Recommend
-```python
-# 根据会议主题推荐历史文档
-recommend_docs(topic="人员密集度检测")
-
-# 返回相似度匹配的历史文档
-```
-
-### 6. 模板引擎 Template Engine
-```python
-# 可用模板
-- technical.md - 技术方案模板
-- sales.md - 销售方案模板
-- weekly.md - 周会报告模板
-- bid.md - 投标方案模板
-```
-
-### 7. 文档归档 Document Archive
-```python
-# 自动归档到指定目录
-archive_doc(file_path="方案.md", category="projects")
-
-# 支持分类：temp/ / projects/ / meetings/
-```
-
-### 8. PDF 导出 PDF Export
-```python
-# Markdown/Word → PDF
-export_pdf(file_path="方案.docx")
-```
-
-### 9. 准备清单 Prep Generator
-```python
-# 根据会议主题生成准备清单
-generate_prep(topic="人员密集度检测讨论会")
-
-# 返回：待准备材料、待邀请人员、参考文档
-```
-
-### 10. 统计数据 Stats
-```python
-# 生成使用统计
-get_stats()
-
-# 返回：任务完成率、文档数量、时间节省估算
-```
-
----
-
-## 📁 目录结构 Directory Structure
-
-```
-smart-butler/
-├── SKILL.md              # 技能说明
-├── src/                  # 核心代码
-│   ├── task_manager.py   # 任务管理
-│   ├── doc_generator.py  # 文档生成
-│   ├── doc_modifier.py   # 文档修改
-│   ├── doc_search.py     # 文档搜索
-│   ├── doc_archive.py    # 文档归档
-│   ├── smart_recommend.py# 智能推荐
-│   ├── template_engine.py# 模板引擎
-│   ├── pdf_export.py     # PDF 导出
-│   ├── prep_generator.py # 准备清单
-│   └── stats.py          # 统计数据
-└── templates/            # 文档模板
-    ├── technical.md      # 技术方案
-    ├── sales.md          # 销售方案
-    ├── weekly.md         # 周会报告
-    └── bid.md            # 投标方案
-```
-
----
-
-## 🚀 快速开始 Quick Start
-
-### 1. 安装技能
-```bash
-clawhub install smart-butler
-```
-
-### 2. 配置（可选）
-```json5
-{
-  skills: {
-    entries: {
-      "smart-butler": {
-        enabled: true,
-        env: {
-          FEISHU_APP_ID: "your_app_id",
-          FEISHU_APP_SECRET: "your_app_secret"
-        }
-      }
-    }
-  }
-}
-```
-
-### 3. 使用示例
-
-**创建会议提醒：**
-```
-"提醒我明天 9 点开会"
-```
-
-**生成会议文档：**
-```
-"下午 3 点有个人员密集度检测讨论会，生成方案"
-```
-
-**修改文档：**
-```
-"把方案的成本部分再强调一下"
-```
-
-**搜索历史文档：**
-```
-"找一下之前关于成本优化的方案"
-```
+### 5. 模板引擎 Template Engine
+- 技术方案模板
+- 销售方案模板
+- 周会报告模板
+- 投标方案模板
 
 ---
 
@@ -197,79 +62,44 @@ clawhub install smart-butler
 | 版本 | 价格 | 功能 |
 |------|------|------|
 | **标准版 Standard** | 免费 Free | 任务管理 + 文档生成 |
-| **专业版 Pro** | $30/month (¥199/月) | 全部功能 + 模板库 |
-| **企业版 Enterprise** | $100/month (¥699/月) | 多用户 + 定制模板 + 优先支持 |
-| **定制开发 Custom** | $1000-5000 (¥7000-35000) | 私有化部署 + 功能定制 |
+| **专业版 Pro** | $50/month (¥350/月) | 全部功能 + 模板库 |
+| **企业版 Enterprise** | $100/month (¥700/月) | 多用户 + 定制模板 + 优先支持 |
+| **定制版 Custom** | $2000-5000 (¥14000-35000) | 私有化部署 + 功能定制 |
 
 ---
 
 ## 📧 联系 Contact
 
-**定制开发/企业版：**
+**定制开发 Custom Development：**
 - 📧 邮箱 Email：1776480440@qq.com
 - 💬 微信 WeChat：私信获取 DM for details
 
 **支持支付 Payment：**
-- 国内 Domestic：微信/支付宝/银行转账
-- 国际 International：
-  - PayPal: https://paypal.me/monet888
-  - Wise: Account 242009405
-  - USDT: 私信获取
+- 国内 Domestic：私信获取
+- 国际 International：私信获取（PayPal/Wise）
+
+**售后支持 After-Sales：**
+- 首年免费维护 Free for 1st year
+- 次年 $100/年 (¥700/年) optional
 
 ---
 
-## 📊 案例展示 Cases
+## 🎯 案例展示 Cases
 
 ### 案例 1：AI 视觉监控系统方案生成
-**需求：** 小区物业火灾监控方案
-**时间：** 30 分钟（传统需要 4 小时）
-**产出：** 完整技术方案 + 报价单
-**结果：** 客户当场签约（3.98W）
+- **需求：** 小区物业火灾监控方案
+- **时间：** 30 分钟（传统需要 4 小时）
+- **产出：** 完整技术方案 + 报价单
+- **结果：** 客户当场签约（3.98W）
 
 ### 案例 2：周会报告自动化
-**需求：** 每周自动生成团队周报
-**时间：** 5 分钟（传统需要 1 小时）
-**产出：** GitHub 动态 + 会议记录 + 行业新闻
-**结果：** 团队效率提升 90%
-
-### 案例 3：投标方案快速生成
-**需求：** 紧急投标方案（2 天截止）
-**时间：** 1 小时（传统需要 2 天）
-**产出：** 完整投标方案 + 技术文档
-**结果：** 成功中标（50W 项目）
+- **需求：** 每周自动生成团队周报
+- **时间：** 5 分钟（传统需要 1 小时）
+- **结果：** 团队效率提升 90%
 
 ---
 
-## 🎯 核心价值 Value Proposition
-
-**节省时间：**
-- 会议准备：1 小时 → 5 分钟
-- 文档生成：4 小时 → 30 分钟
-- 会后跟进：30 分钟 → 自动完成
-
-**提升质量：**
-- 智能推荐历史文档
-- 模板化标准化输出
-- 版本管理避免出错
-
-**降低成本：**
-- 减少重复劳动
-- 提高成交率
-- 规模化复制
-
----
-
-## 🔧 技术栈 Tech Stack
-
-- Python 3.8+
-- Markdown/Word/PDF 处理
-- 飞书 API（通知）
-- 语义相似度匹配
-- 版本控制系统
-
----
-
-## 📝 更新日志 Changelog
+## 🚀 更新日志 Changelog
 
 ### v1.0.0 (2026-03-05)
 - 初始发布
