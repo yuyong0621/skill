@@ -1,28 +1,28 @@
 {
-  "_comment": "董事长早晚报 - 关注列表示例配置",
+  "_comment": "Chairman Daily Brief - Watchlist Example Configuration",
   "holdings": [
     {
       "symbol": "600519.SS",
-      "name": "贵州茅台",
+      "name": "Kweichow Moutai",
       "addedAt": "2026-03-01T00:00:00Z",
-      "notes": "白酒龙头"
+      "notes": "Baijiu industry leader"
     }
   ],
   "competitors": [
     {
       "symbol": "000858.SZ",
-      "name": "五粮液",
-      "peerGroup": "白酒",
+      "name": "Wuliangye",
+      "peerGroup": "Baijiu",
       "addedAt": "2026-03-01T00:00:00Z"
     },
     {
       "symbol": "000568.SZ",
-      "name": "泸州老窖",
-      "peerGroup": "白酒",
+      "name": "Luzhou Laojiao",
+      "peerGroup": "Baijiu",
       "addedAt": "2026-03-01T00:00:00Z"
     }
   ],
   "peers": {
-    "白酒": ["600519.SS", "000858.SZ", "000568.SZ", "000596.SZ"]
+    "Baijiu": ["600519.SS", "000858.SZ", "000568.SZ", "000596.SZ"]
   }
 }
