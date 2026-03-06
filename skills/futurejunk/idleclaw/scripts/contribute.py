@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import sys
+import time
 import uuid
 
 from ollama import AsyncClient
@@ -21,21 +22,23 @@ HEARTBEAT_INTERVAL = 15
 BASE_DELAY = 1
 MAX_DELAY = 60
 
-THINKING_MODEL_PATTERNS = ("qwen3",)
-
-TOOL_CALL_MODEL_PATTERNS = (
-    "qwen3", "llama3.1", "llama3.3", "mistral", "ministral",
-    "granite4", "devstral", "gpt-oss", "qwen3.5", "functiongemma",
-)
+_health_cache: dict[str, float | bool] = {"healthy": True, "checked_at": 0.0}
+HEALTH_CACHE_TTL = 5  # seconds
 
 
-def detect_capabilities(model_name: str) -> dict:
-    """Detect model capabilities from name heuristics."""
-    name_lower = model_name.lower()
-    return {
-        "thinking": any(p in name_lower for p in THINKING_MODEL_PATTERNS),
-        "tool_calls": any(p in name_lower for p in TOOL_CALL_MODEL_PATTERNS),
-    }
+async def check_health() -> bool:
+    """Check if Ollama is reachable. Caches result for HEALTH_CACHE_TTL seconds."""
+    now = time.monotonic()
+    if now - _health_cache["checked_at"] < HEALTH_CACHE_TTL:
+        return bool(_health_cache["healthy"])
+    try:
+        client = AsyncClient(host=OLLAMA_HOST)
+        await client.list()
+        _health_cache["healthy"] = True
+    except Exception:
+        _health_cache["healthy"] = False
+    _health_cache["checked_at"] = now
+    return bool(_health_cache["healthy"])
 
 
 async def get_ollama_version() -> str:
@@ -60,17 +63,12 @@ async def check_ollama() -> list[dict]:
             {
                 "name": m.model,
                 "size": m.size,
-                "capabilities": detect_capabilities(m.model),
             }
             for m in response.models
         ]
     except Exception as e:
-        print(f"Error: Cannot connect to Ollama at {OLLAMA_HOST}", file=sys.stderr)
-        print(f"  Detail: {e}", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Make sure Ollama is running:", file=sys.stderr)
-        print("  1. Start Ollama: ollama serve", file=sys.stderr)
-        print("  2. Pull a model: ollama pull llama3.2:3b", file=sys.stderr)
+        print(f"Error: Cannot connect to Ollama at {OLLAMA_HOST} ({e})", file=sys.stderr)
+        print("Start Ollama (ollama serve) and pull a model (ollama pull llama3.2:3b).", file=sys.stderr)
         sys.exit(1)
 
 
@@ -162,6 +160,16 @@ async def run_node(server_url: str, models: list[dict], ollama_version: str) -> 
         nonlocal active_requests
         request_id = req["request_id"]
         ollama_params = req["ollama_params"]
+
+        if not await check_health():
+            logger.warning("Ollama unavailable for request %s", request_id[:8])
+            await ws.send(json.dumps({
+                "type": "inference_error",
+                "request_id": request_id,
+                "error": "ollama_unavailable",
+            }))
+            return
+
         active_requests += 1
         logger.info("Inference request %s for %s", request_id[:8], ollama_params.get("model", "?"))
         try:
@@ -177,13 +185,16 @@ async def run_node(server_url: str, models: list[dict], ollama_version: str) -> 
             logger.info("Inference complete: %s", request_id[:8])
         except asyncio.CancelledError:
             logger.info("Inference cancelled: %s", request_id[:8])
-        except Exception as e:
-            logger.error("Inference error for %s: %s", request_id[:8], e)
-            await ws.send(json.dumps({
-                "type": "inference_error",
-                "request_id": request_id,
-                "error": "ollama_error",
-            }))
+        except Exception:
+            logger.exception("Inference error for %s", request_id[:8])
+            try:
+                await ws.send(json.dumps({
+                    "type": "inference_error",
+                    "request_id": request_id,
+                    "error": "ollama_error",
+                }))
+            except Exception:
+                pass
         finally:
             active_requests = max(0, active_requests - 1)
 
@@ -208,23 +219,15 @@ async def run_node(server_url: str, models: list[dict], ollama_version: str) -> 
 async def main():
     server_url = get_server_url()
 
-    print("IdleClaw Contribute")
-    print("===================")
-    print(f"Server: {server_url}")
-    print(f"Ollama: {OLLAMA_HOST}")
-    print()
+    print(f"IdleClaw Contribute | Server: {server_url} | Ollama: {OLLAMA_HOST}")
 
-    # Check Ollama first
     models = await check_ollama()
     if not models:
         print("Error: No models found. Pull a model first: ollama pull llama3.2:3b", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Found {len(models)} model(s):")
     for m in models:
-        size_gb = m["size"] / (1024**3)
-        print(f"  - {m['name']} ({size_gb:.1f} GB)")
-    print()
+        print(f"  - {m['name']} ({m['size'] / (1024**3):.1f} GB)")
 
     # Detect Ollama version
     ollama_version = await get_ollama_version()
@@ -241,18 +244,9 @@ async def main():
             await run_node(server_url, models, ollama_version)
             attempt = 0
         except websockets.exceptions.InvalidURI:
-            print(f"Error: Invalid server URL: {server_url}", file=sys.stderr)
-            print("Check your IDLECLAW_SERVER environment variable.", file=sys.stderr)
+            print(f"Error: Invalid server URL: {server_url}. Check IDLECLAW_SERVER.", file=sys.stderr)
             sys.exit(1)
-        except (ConnectionRefusedError, OSError) as e:
-            if attempt == 0:
-                print(f"Error: Cannot connect to server at {server_url}", file=sys.stderr)
-                print(f"  Detail: {e}", file=sys.stderr)
-                print("", file=sys.stderr)
-                print("Check that the IdleClaw server is running, or set IDLECLAW_SERVER.", file=sys.stderr)
-            else:
-                logger.warning("Connection lost: %s", e)
-        except Exception as e:
+        except (ConnectionRefusedError, OSError, Exception) as e:
             logger.warning("Connection lost: %s", e)
 
         delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY) + random.uniform(0, 1)
