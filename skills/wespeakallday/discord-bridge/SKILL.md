@@ -1,7 +1,7 @@
 ---
 name: discord-bridge
 description: Bridge Discord messages to Agent Zero's HTTP API
-version: 1.0.0
+version: 1.0.1
 author: Migration from Agent Zero
 ---
 
