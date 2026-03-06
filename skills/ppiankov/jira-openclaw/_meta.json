@@ -1,0 +1,11 @@
+{
+  "owner": "ppiankov",
+  "slug": "jira-openclaw",
+  "displayName": "Jira OpenClaw",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772720908515,
+    "commit": null
+  },
+  "history": []
+}
