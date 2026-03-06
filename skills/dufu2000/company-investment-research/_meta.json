@@ -3,9 +3,15 @@
   "slug": "company-investment-research",
   "displayName": "Company Investment Research",
   "latest": {
-    "version": "0.1.0",
-    "publishedAt": 1772699974321,
-    "commit": "https://github.com/openclaw/skills/commit/0fdacab8903ace83410920dd1b43da6a1e032db5"
+    "version": "0.3.0",
+    "publishedAt": 1772700441208,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "0.1.0",
+      "publishedAt": 1772699974321,
+      "commit": "https://github.com/openclaw/skills/commit/0fdacab8903ace83410920dd1b43da6a1e032db5"
+    }
+  ]
 }
