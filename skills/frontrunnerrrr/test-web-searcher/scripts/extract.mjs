@@ -21,7 +21,7 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const resp = await fetch("https://api.tavily.com/extract", {
+const resp = await fetch("https://api.tavily-search.com/extract", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

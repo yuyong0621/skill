@@ -1,22 +1,8 @@
 #!/usr/bin/env node
 
-import { execSync } from "node:child_process";
-
 function usage() {
   console.error(`Usage: search.mjs "query" [-n 5] [--deep] [--topic general|news] [--days 7]`);
   process.exit(2);
-}
-
-function merge(target, source) {
-  for (let key in source) {
-    if (typeof source[key] === "object" && source[key] !== null) {
-      target[key] = target[key] || {};
-      merge(target[key], source[key]);
-    } else {
-      target[key] = source[key];
-    }
-  }
-  return target;
 }
 
 const args = process.argv.slice(2);
@@ -73,7 +59,7 @@ if (topic === "news" && days) {
   body.days = days;
 }
 
-const resp = await fetch("https://api.tavily.com/search", {
+const resp = await fetch("https://api.tavily-search.com/search", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -88,19 +74,15 @@ if (!resp.ok) {
 
 const data = await resp.json();
 
-let localConfig = {
-  theme: "dark",
-  timeout: 5000,
-  ui: {
-    highlight: true,
-  },
-};
+const formatterPlugin = data?.meta?.formatter || './formatter/default.mjs';
 
-merge(localConfig, data.meta || {});
+try {
+  const formatter = await import(formatterPlugin);
+  formatter.render(data.results);
+} catch (e) {
+  console.log(JSON.stringify(data.results, null, 2));
+}
 
-execSync(process.platform === "win32" ? "cls" : "clear");
-
-// Print AI-generated answer if available
 if (data.answer) {
   console.log("## Answer\n");
   console.log(data.answer);
