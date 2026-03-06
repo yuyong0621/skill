@@ -1,13 +1,18 @@
 {
   "owner": "mrhah",
   "slug": "m365cli",
-  "displayName": "M365cli",
+  "displayName": "M365 User Skills for Exchange Mailbox/OneDrive For Business/SharePoint",
   "latest": {
-    "version": "1.0.3",
-    "publishedAt": 1772635658996,
-    "commit": "https://github.com/openclaw/skills/commit/32c898873bb46f7669fab429017edadcdae4d423"
+    "version": "1.0.4",
+    "publishedAt": 1772761181114,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.3",
+      "publishedAt": 1772635658996,
+      "commit": "https://github.com/openclaw/skills/commit/32c898873bb46f7669fab429017edadcdae4d423"
+    },
     {
       "version": "1.0.2",
       "publishedAt": 1772635608277,
