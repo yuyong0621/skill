@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// SECURITY MANIFEST:
+//   Environment variables accessed: OPENCLAW_ALLOWED_UPLOAD_HOSTS
+//   External endpoints called: <base-url>/auth/me, <base-url>/posts*, <base-url>/profiles/me, <base-url>/uploads/presign, PUT <presigned-url>
+//   Local files read: required session file, optional local avatar file for upload-avatar
+//   Local files written: none
 
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -16,7 +21,7 @@ Usage:
   node scripts/agent_social_ops.mjs delete-comment --base-url <api> --session-file <file> --post-id <id> --comment-id <id>
   node scripts/agent_social_ops.mjs remove-post --base-url <api> --session-file <file> --post-id <id>
   node scripts/agent_social_ops.mjs update-profile --base-url <api> --session-file <file> [--display-name <text>] [--avatar-object-path <path>] [--clear-avatar]
-  node scripts/agent_social_ops.mjs upload-avatar --base-url <api> --session-file <file> --file <local_path> [--filename <name>] [--content-type <mime>] [--display-name <text>]
+  node scripts/agent_social_ops.mjs upload-avatar --base-url <api> --session-file <file> --file <local_path> [--filename <name>] [--content-type <mime>] [--display-name <text>] [--allowed-upload-hosts <csv>]
   node scripts/agent_social_ops.mjs smoke-social --base-url <api> --session-file <file> [--post-content <text>] [--comment-content <text>]
 `);
 }
@@ -80,6 +85,58 @@ function parseMediaJson(raw, fieldName) {
     throw new Error(`Invalid ${fieldName}: expected JSON array`);
   }
   return parsed;
+}
+
+function parseAllowedUploadHosts(args) {
+  const raw = String(args["allowed-upload-hosts"] || process.env.OPENCLAW_ALLOWED_UPLOAD_HOSTS || "").trim();
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function matchAllowedHostRule(host, rule) {
+  if (!host || !rule) {
+    return false;
+  }
+  if (rule.startsWith("*.")) {
+    const suffix = rule.slice(1);
+    return host.endsWith(suffix);
+  }
+  if (rule.startsWith(".")) {
+    return host === rule.slice(1) || host.endsWith(rule);
+  }
+  return host === rule;
+}
+
+function ensureAllowedUploadHost(baseUrl, putUrl, args) {
+  const apiHost = new URL(baseUrl).hostname.toLowerCase();
+  const uploadHost = new URL(putUrl).hostname.toLowerCase();
+  if (uploadHost === apiHost) {
+    return {
+      uploadHost,
+      allowedBy: "base-url-host",
+    };
+  }
+
+  const allowRules = parseAllowedUploadHosts(args);
+  for (const rule of allowRules) {
+    if (matchAllowedHostRule(uploadHost, rule)) {
+      return {
+        uploadHost,
+        allowedBy: rule,
+      };
+    }
+  }
+
+  const configured = allowRules.length ? allowRules.join(",") : "<none>";
+  throw new Error(
+    `Upload host is not allowed: ${uploadHost} (api host: ${apiHost}, allowed rules: ${configured}). ` +
+      `Pass --allowed-upload-hosts or set OPENCLAW_ALLOWED_UPLOAD_HOSTS.`,
+  );
 }
 
 async function requestJson(url, method, token, body) {
@@ -319,6 +376,7 @@ async function doUploadAvatar(baseUrl, token, args) {
   if (!putUrl || !objectPath) {
     throw new Error("Invalid presign response: missing putUrl or object_path");
   }
+  const uploadHostDecision = ensureAllowedUploadHost(baseUrl, putUrl, args);
 
   await requestUploadPut(putUrl, contentType || "application/octet-stream", fileBuffer);
 
@@ -334,6 +392,8 @@ async function doUploadAvatar(baseUrl, token, args) {
     command: "upload-avatar",
     file: filePath,
     object_path: objectPath,
+    upload_host: uploadHostDecision.uploadHost,
+    upload_host_allowed_by: uploadHostDecision.allowedBy,
     get_url: presign?.getUrl || null,
     media_type: presign?.media_type || null,
     profile,
@@ -397,6 +457,9 @@ function pickHint(errorMessage) {
   if (errorMessage.includes("avatar_object_path")) {
     return "Use /uploads/presign first, then PATCH /profiles/me with returned object_path.";
   }
+  if (errorMessage.includes("Upload host is not allowed")) {
+    return "Allow the presigned upload host via --allowed-upload-hosts or OPENCLAW_ALLOWED_UPLOAD_HOSTS.";
+  }
   return "Check request parameters and API reachability.";
 }
 
@@ -450,10 +513,28 @@ try {
   await main();
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
+  const rawCause = error && typeof error === "object" && "cause" in error ? error.cause : null;
+  let cause = null;
+  if (rawCause && typeof rawCause === "object") {
+    const c = rawCause;
+    cause = {
+      code: typeof c.code === "string" ? c.code : null,
+      errno: typeof c.errno === "number" ? c.errno : null,
+      syscall: typeof c.syscall === "string" ? c.syscall : null,
+      hostname: typeof c.hostname === "string" ? c.hostname : null,
+      address: typeof c.address === "string" ? c.address : null,
+      port: typeof c.port === "number" ? c.port : null,
+      status: typeof c.status === "number" ? c.status : null,
+      body: c.body !== undefined ? c.body : null,
+    };
+  } else if (rawCause !== null && rawCause !== undefined) {
+    cause = String(rawCause);
+  }
   console.error(JSON.stringify({
     ok: false,
     error: message,
     hint: pickHint(message),
+    cause,
   }, null, 2));
   process.exit(1);
 }
