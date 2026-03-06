@@ -1,0 +1,11 @@
+{
+  "owner": "neil-bd",
+  "slug": "venn",
+  "displayName": "Venn - Secure Universal MCP (Google Workspace, Jira, GitHub, and more)",
+  "latest": {
+    "version": "1.0.3",
+    "publishedAt": 1772733623902,
+    "commit": null
+  },
+  "history": []
+}
