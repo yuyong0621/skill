@@ -1,0 +1,11 @@
+{
+  "owner": "libaoming",
+  "slug": "china-weather",
+  "displayName": "中国天气",
+  "latest": {
+    "version": "1.0.1",
+    "publishedAt": 1772782291423,
+    "commit": null
+  },
+  "history": []
+}
