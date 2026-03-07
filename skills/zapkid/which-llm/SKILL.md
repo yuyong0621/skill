@@ -5,6 +5,8 @@ version: 0.1.0
 homepage: https://which-llm.com
 credentials_required: true
 primary_credential: WALLET_CREDENTIALS
+always_on: false
+disable_model_invocation: false
 ---
 
 # Which‑LLM: Outcome‑Driven Decision Optimizer
@@ -14,6 +16,8 @@ primary_credential: WALLET_CREDENTIALS
 Use this skill when you need a deterministic recommendation for which LLM to use under explicit constraints such as cost and quality.
 
 The skill is for calling the Which‑LLM API. It does not run an LLM itself. It helps an agent decide which model to call next, then optionally report the outcome to earn credits for future paid calls.
+
+This is not a read-only decision helper. For paid calls, it can participate in the payment flow by preparing, signing, and submitting exact USDC transactions from the configured wallet. The raw private key fallback and the signing/broadcast capability materially elevate the sensitivity of this skill.
 
 ## When to use it
 
@@ -42,6 +46,8 @@ Before using paid endpoints, have the following ready:
 - Optional `WALLET_RPC_URL` and `PREFERRED_CHAIN_ID`
 - Payment-address verification from at least two publication channels or retrieval paths
 - The skill declares per-request payment approval as the intended default, but actual enforcement depends on the host or runtime
+- Registry and host summaries should describe this skill as requiring wallet credentials via one supported env-var path, not as requiring no env vars
+- The raw private key fallback is higher risk than the keystore path and should be treated as an exception-only option
 
 Keep this brief rule in mind: never use a main wallet for this skill.
 
@@ -65,6 +71,7 @@ If you use the fallback:
 - keep the wallet separate
 - keep the balance small
 - keep per-request approval enabled by default
+- understand that this is materially more sensitive because the raw signing key is exposed directly to the host runtime
 
 ### Wallet Setup Best Practices
 
@@ -81,6 +88,7 @@ If you use the fallback:
 - Uses `POST /decision/optimize` to get a recommended model and fallback plan
 - Uses `POST /decision/outcome` to report real execution results
 - Handles the standard payment flow for paid calls: `402 -> approve/sign payment -> retry`
+- Can prepare and broadcast payment transactions using the configured wallet when the host allows the payment flow to proceed
 - Sends only public payment proof to the API: transaction hash, payer address, amount, chain, and asset
 - Can apply `X-Credit-Token` to reduce the next paid request
 
@@ -89,6 +97,16 @@ If you use the fallback:
 - It does not call an LLM directly
 - It does not execute arbitrary code from your prompt
 - It does not need unrelated files, secrets, or system access outside the wallet and API call flow
+
+## Runtime Privilege And Risk
+
+- `always_on: false`: the skill is not force-installed and does not run continuously
+- `disable_model_invocation: false`: an agent may invoke it on demand
+- For paid requests, the skill can use high-sensitivity wallet credentials to prepare, sign, and submit transactions
+- The raw private key fallback and the ability to sign and broadcast transactions materially elevate the skill's sensitivity versus a read-only helper
+- The declared default is per-request approval, but host enforcement is external or unknown
+- If a host disables approval prompts, the blast radius increases to the balance of the configured wallet
+- Never supply a main wallet; use a separate low-balance wallet only
 
 ## Payment Model
 

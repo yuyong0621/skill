@@ -6,14 +6,14 @@
   "description": "Deterministic decision-ranking API with HTTP 402 USDC payments and outcome credits (discounts).",
   "homepage": "https://which-llm.com",
   "updated_at": "2026-02-11T13:45:00Z",
-  "security_notice": "Paid API calls require wallet credentials for a separate low-balance EVM wallet. Prefer an encrypted keystore, verify payment addresses across multiple publication channels, and treat per-request approval as host-dependent rather than guaranteed by the skill alone.",
+  "security_notice": "Paid API calls require wallet credentials for a separate low-balance EVM wallet. This skill is not a read-only decision helper: it can prepare, sign, and submit exact USDC payments for paid requests. The raw private key fallback and the ability to sign and broadcast payments materially elevate sensitivity. Prefer an encrypted keystore, verify payment addresses across multiple publication channels, and treat per-request approval as host-dependent rather than guaranteed by the skill alone.",
   "disableModelInvocation": false,
   "invocation_model": {
     "always_on": false,
     "trigger": "on_demand",
     "approval_model": "per_request_user_approval_required",
-    "description": "This skill is invoked on demand for decision optimization. It does not run continuously or monitor in the background.",
-    "autonomous_payment_rationale": "The declared default policy is explicit user approval before each payment. A host may later allow a lower-friction mode if a human deliberately enables it, but only for a separate wallet with a strict balance cap.",
+    "description": "This skill is invoked on demand for decision optimization and payment handling. It does not run continuously or monitor in the background, but it may autonomously prepare, sign, and submit payment transactions within the host's approval model.",
+    "autonomous_payment_rationale": "The declared default policy is explicit user approval before each payment. A host may later allow a lower-friction mode if a human deliberately enables it, but only for a separate wallet with a strict balance cap. Because disableModelInvocation is false, users should confirm how their host enforces approval before trusting the skill with wallet credentials, especially given the signing and broadcast capabilities.",
     "approval_toggle": {
       "available": true,
       "default_mode": "per_request_approval_required",
@@ -36,12 +36,14 @@
   "credentials": {
     "required": true,
     "primary_credential_type": "WALLET_CREDENTIALS",
+    "sensitivity": "high",
     "autonomous_capabilities": [
       "query_blockchain_state",
       "prepare_payment_transactions",
-      "sign_transactions_after_human_approval"
+      "sign_transactions_after_human_approval",
+      "broadcast_signed_transactions"
     ],
-    "description": "This skill requires credentials for a separate low-balance EVM wallet so it can prepare, sign, and submit exact USDC payments for paid API calls. The preferred credential path is an encrypted keystore.",
+    "description": "This skill requires credentials for a separate low-balance EVM wallet so it can prepare, sign, and submit exact USDC payments for paid API calls. The preferred credential path is an encrypted keystore. These credentials grant spending power and must never come from a main wallet. Sensitivity is elevated further by the raw private key fallback and the ability to sign and broadcast transactions.",
     "wallet_requirements": {
       "type": "EVM-compatible",
       "supported_chains": ["Ethereum", "Base", "Arbitrum", "Optimism", "Avalanche"],
@@ -65,7 +67,8 @@
             "status": "supported",
             "recommended": false,
             "risk_level": "higher_risk_fallback",
-            "mitigation": "Use only as a fallback for a separate wallet with a small balance only."
+            "mitigation": "Use only as a fallback for a separate wallet with a small balance only.",
+            "sensitivity_note": "This fallback is materially more sensitive because the raw signing key is directly exposed to the host runtime."
           }
         ],
         "note": "Preferred: encrypted keystore. Fallback: raw private key."
@@ -178,7 +181,11 @@
       }
     ],
     "optional_configuration_env_vars": ["WALLET_RPC_URL", "PREFERRED_CHAIN_ID"],
-    "host_runtime_note": "A registry or host should not summarize this skill as requiring no environment variables; one of the listed credential paths is required for paid requests."
+    "host_runtime_note": "A registry or host should not summarize this skill as requiring no environment variables or no primary credential; one of the listed credential paths is required for paid requests. The raw private key fallback and signing/broadcast capability elevate the sensitivity of this skill.",
+    "registry_summary_expectation": {
+      "required_env_vars_summary": "wallet credentials required via one supported path",
+      "primary_credential": "WALLET_CREDENTIALS"
+    }
   },
   "credential_verification_requirements": {
     "payment_address_verification": {
