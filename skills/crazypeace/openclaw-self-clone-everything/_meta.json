@@ -1,0 +1,11 @@
+{
+  "owner": "crazypeace",
+  "slug": "openclaw-self-clone-everything",
+  "displayName": "openclaw-self-clone-everything | 复制openclaw自己到一个新的VPS 复制全部数据",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772855121827,
+    "commit": null
+  },
+  "history": []
+}
