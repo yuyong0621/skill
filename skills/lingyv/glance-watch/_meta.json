@@ -1,0 +1,11 @@
+{
+  "owner": "lingyv",
+  "slug": "glance-watch",
+  "displayName": "智能盯盘",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1772777480329,
+    "commit": null
+  },
+  "history": []
+}
