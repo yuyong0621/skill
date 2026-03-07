@@ -1,0 +1,11 @@
+{
+  "owner": "keylimesoda",
+  "slug": "last30days-openclaw",
+  "displayName": "Last30Days Community Intelligence for OpenClaw",
+  "latest": {
+    "version": "1.0.0-openclaw.1",
+    "publishedAt": 1772781158527,
+    "commit": null
+  },
+  "history": []
+}
