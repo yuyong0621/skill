@@ -1,0 +1,11 @@
+{
+  "owner": "matzoh",
+  "slug": "agent-swarm-orchestrator",
+  "displayName": "Agent Swarm Orchestrator",
+  "latest": {
+    "version": "1.1.0",
+    "publishedAt": 1772844941801,
+    "commit": null
+  },
+  "history": []
+}
