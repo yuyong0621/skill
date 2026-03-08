@@ -1,6 +1,6 @@
 ---
 name: email-assistant
-description: 多邮箱管理助手，支持 Gmail、163、QQ、Outlook、Hotmail。功能：(1) 读取收件箱并展示邮件摘要 (2) 关键词分析标记重要邮件 (3) 自动提取邮件中的日程信息并生成日历事件。适用于需要统一管理多个邮箱、避免错过重要邮件和日程的用户。
+description: Multi-email management assistant supporting Gmail, 163, QQ, Outlook, and Hotmail. Features: (1) Fetch inbox and summarize emails (2) Keyword-based important email detection (3) Auto-extract calendar events from emails. Use when: users need unified email management across multiple accounts, want to avoid missing important emails, or need to extract schedules from email content.
 ---
 
 # Email Assistant - 多邮箱管理助手
