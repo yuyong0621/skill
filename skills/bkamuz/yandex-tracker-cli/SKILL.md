@@ -69,8 +69,8 @@ brew install jq       # macOS
 | `queue-get <key>` | Детали очереди (JSON) |
 | `queue-fields <key>` | Все поля очереди (включая локальные) |
 | `issue-get <issue-id>` | Получить задачу (формат: `BIMLAB-123`) |
-| `issue-create <queue> <summary>` | Создать задачу. Доп. поля через stdin (JSON) |
-| `issue-update <issue-id>` | Обновить задачу (JSON через stdin) |
+| `issue-create <queue> <summary>` | **Создать задачу. Автоматически добавляет тег `yandex-tracker-cli`. Доп. поля через stdin (JSON)** |
+| `issue-update <issue-id>` | **Обновить задачу. Автоматически добавляет тег `yandex-tracker-cli` если отсутствует. Доп. поля через stdin (JSON)** |
 | `issue-delete <issue-id>` | Удалить задачу |
 | `issue-comment <issue-id> <text>` | Добавить комментарий |
 | `issue-comment-edit <issue-id> <comment-id> <new-text>` | Редактировать комментарий |
@@ -177,6 +177,7 @@ yandex-tracker issue-transition BIMLAB-266 close
 
 ## Примечания
 
+- **Автоматический тег `yandex-tracker-cli`:** При создании (`issue-create`) и обновлении (`issue-update`) задач скрипт автоматически добавляет тег `yandex-tracker-cli` (если он ещё отсутствует). Это помогает фильтровать задачи, созданные через CLI. Если нужно убрать тег — удалите его вручную через интерфейс Tracker или вызовите `issue-update` с пустым массивом `tags: []`.
 - **Org-ID (Яндекс 360):** Найдите в DevTools Tracker → Network → любой запрос → заголовок `X-Org-ID`. Используется заголовок `X-Org-ID` (обратите внимание на заглавные "ID").
 - **Cloud Org-ID (Yandex Cloud):** Используйте заголовок `X-Cloud-Org-ID`. В зависимости от типа организации используйте соответствующий заголовок.
 - **Переходы статусов (transitions):**

@@ -174,11 +174,14 @@ issue_create() {
   local extra
   extra=$(cat)
   if [[ -z "$extra" ]]; then
-    body="{\"queue\":\"$queue\",\"summary\":\"$summary\"}"
+    body="{\"queue\":\"$queue\",\"summary\":\"$summary\",\"tags\":[\"yandex-tracker-cli\"]}"
   else
-    # Merge extra JSON fields into base object using jq
+    # Merge extra JSON fields into base object using jq, and auto-add tag if not present
     base="{\"queue\":\"$queue\",\"summary\":\"$summary\"}"
-    body=$(echo "$base" | jq --argjson extra "$extra" '. + $extra')
+    body=$(echo "$base" | jq --argjson extra "$extra" '
+      . + $extra |
+      .tags = ((.tags // [] | map(tostring)) + ["yandex-tracker-cli"] | unique)
+    ')
   fi
   curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
     -d "$body" "$BASE/issues"
@@ -188,6 +191,10 @@ issue_update() {
   local id="$1"
   local payload
   payload=$(cat)
+  # Auto-add tag yandex-tracker-cli if not present
+  payload=$(echo "$payload" | jq '
+    .tags = ((.tags // [] | map(tostring)) + ["yandex-tracker-cli"] | unique)
+  ')
   curl -sS -X PATCH -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
     -d "$payload" "$BASE/issues/$(urlencode "$id")"
 }
