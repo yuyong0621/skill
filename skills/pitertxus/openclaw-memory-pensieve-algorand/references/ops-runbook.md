@@ -3,7 +3,13 @@
 Use interpreter:
 
 ```bash
-PY=/home/molty/.openclaw/workspace/.venv-algo/bin/python
+PY=<workspace>/.venv-algo/bin/python
+```
+
+Preflight first:
+
+```bash
+python3 scripts/preflight_requirements.py
 ```
 
 ## Daily sequence

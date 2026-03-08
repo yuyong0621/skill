@@ -23,10 +23,23 @@ Run this workflow when the goal is reliable long-term memory with disaster recov
 - Anchor encrypted payloads only (never plaintext memory).
 - Treat hardening failures as blocking for “recovery-fidelity” claims.
 
+## Prerequisites (explicit)
+
+- Python environment with `algosdk` and `cryptography`
+- Local secret files (not packaged):
+  - `.secrets/algorand-wallet-nox.json`
+  - `.secrets/algorand-note-key.bin`
+- Optional explicit env vars for endpoints/auth:
+  - `ALGORAND_ALGOD_URL`, `ALGORAND_ALGOD_TOKEN`
+  - `ALGORAND_INDEXER_URL`, `ALGORAND_INDEXER_TOKEN`
+
+Run preflight first:
+- `scripts/preflight_requirements.py`
+
 ## Runtime commands (current implementation)
 
 Use interpreter:
-- `/home/molty/.openclaw/workspace/.venv-algo/bin/python`
+- `<workspace>/.venv-algo/bin/python`
 
 Bundled scripts in this skill (`scripts/`):
 - `auto_capture_daily.py`
@@ -36,6 +49,7 @@ Bundled scripts in this skill (`scripts/`):
 - `hardening_v21_validate.py`
 - `recover_from_blockchain.py`
 - `capture_from_logs.py`
+- `preflight_requirements.py`
 
 Main pipeline:
 - `scripts/auto_capture_daily.py`
@@ -53,3 +67,4 @@ Recovery/debug:
 - `references/architecture.md` for layer model and guarantees.
 - `references/ops-runbook.md` for day-to-day run commands and outputs.
 - `references/hardening-v21.md` for strict post-anchor validation policy.
+- `references/security-prereqs.md` for explicit dependency/secret contract.
