@@ -10,16 +10,17 @@
 //   node limit-order.js list   --wallet <addr> --api-url <url> --chain-id <int> [--order-status open|filled|expired|cancelled]
 //   node limit-order.js cancel --nonce <uint>
 //
-// Signing priority (same as SKILL.md):
-//   1. FOUNDRY_ACCOUNT + KEYSTORE_PASSWORD_FILE → subprocess: cast wallet sign --data
-//   2. PRIVATE_KEY → ethers.Wallet directly
-//   If neither: exit 1 with error message.
+// Signing mode (same as SKILL.md):
+//   FOUNDRY_ACCOUNT + KEYSTORE_PASSWORD_FILE only.
+//   PRIVATE_KEY runtime signing is intentionally not supported.
 'use strict';
 
 const { computeNonceComponents, checkPrecision } = require('./helpers');
 const { ethers } = require('ethers');
 const { execSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // ethers v5 BigNumber (SDK uses .gte() etc — native BigInt not compatible)
 const BN = ethers.BigNumber;
@@ -82,7 +83,8 @@ async function place(args) {
   const nonceRes = await fetch(`${apiUrl}/nonce?address=${wallet}&chainId=${chainId}`, { headers: uniswapHeaders });
   if (!nonceRes.ok) throw new Error(`Nonce fetch failed: ${nonceRes.status} ${await nonceRes.text()}`);
   const nonceData = await nonceRes.json();
-  const nonce = nonceData.nonce;
+  // Allow --nonce override to skip a used nonce; otherwise use API-returned nonce
+  const nonce = args.nonce || nonceData.nonce;
 
   // 3. Build order using DutchOrderBuilder (no LimitOrderBuilder in SDK v2)
   //    Set decayStartTime === decayEndTime === deadline → zero decay = limit order
@@ -129,9 +131,15 @@ async function place(args) {
   const passwordFile = process.env.KEYSTORE_PASSWORD_FILE;
   const privateKey = process.env.PRIVATE_KEY;
 
+  if (privateKey) {
+    console.error('ERROR: PRIVATE_KEY runtime mode is deprecated. Migrate to FOUNDRY_ACCOUNT + KEYSTORE_PASSWORD_FILE.');
+    process.exit(1);
+  }
+
   if (foundryAccount && passwordFile) {
-    // Preferred: keystore via cast subprocess
-    const tmpFile = `/tmp/limit-order-typed-data-${Date.now()}.json`;
+    // Keystore signing via cast subprocess
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'limit-order-'));
+    const tmpFile = path.join(tmpDir, 'typed-data.json');
     fs.writeFileSync(tmpFile, typedDataJson);
     try {
       signature = execSync(
@@ -139,13 +147,10 @@ async function place(args) {
         { encoding: 'utf8' }
       ).trim();
     } finally {
-      fs.unlinkSync(tmpFile);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  } else if (privateKey) {
-    const signer = new ethers.Wallet(privateKey);
-    signature = await signer._signTypedData(domain, types, values);
   } else {
-    console.error('ERROR: Set FOUNDRY_ACCOUNT+KEYSTORE_PASSWORD_FILE or PRIVATE_KEY');
+    console.error('ERROR: Missing signing config. Set FOUNDRY_ACCOUNT + KEYSTORE_PASSWORD_FILE.');
     process.exit(1);
   }
 
