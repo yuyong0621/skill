@@ -11,12 +11,7 @@ metadata:
       env:
         - MEMIC_API_KEY
       bins:
-        - python3
-    install:
-      - kind: uv
-        package: memic
-        bins:
-          - python3
+        - pip
 ---
 
 # Memic — Context Engineering SDK
