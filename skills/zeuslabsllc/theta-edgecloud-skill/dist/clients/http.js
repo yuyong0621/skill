@@ -71,8 +71,19 @@ export async function postJson(url, body, opts) {
     });
     return res.json();
 }
+async function parseResponseBody(res) {
+    const contentType = res.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+        return res.json();
+    }
+    const text = await res.text();
+    if (!text)
+        return { status: 'success' };
+    return { status: 'success', raw: text };
+}
 export async function putEmpty(url, opts) {
-    await request(url, 'PUT', undefined, opts);
+    const res = await request(url, 'PUT', undefined, opts);
+    return parseResponseBody(res);
 }
 export async function putJson(url, body, opts) {
     const res = await request(url, 'PUT', JSON.stringify(body), {
@@ -82,5 +93,6 @@ export async function putJson(url, body, opts) {
     return res.json();
 }
 export async function deleteEmpty(url, opts) {
-    await request(url, 'DELETE', undefined, opts);
+    const res = await request(url, 'DELETE', undefined, opts);
+    return parseResponseBody(res);
 }

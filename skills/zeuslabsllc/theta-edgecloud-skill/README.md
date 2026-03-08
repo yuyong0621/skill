@@ -2,6 +2,11 @@
 
 This is a dist-only runtime artifact for ClawHub scanning/install path validation.
 
+## Known temporary limitation (2026-03-07)
+- Dedicated inference endpoint commands are **temporarily considered experimental/platform-blocked** until Theta confirms an upstream fix.
+- Live validation showed repeated authenticated `502/503` on `/v1/models` and `/v1/chat/completions` even when dashboard/controller reported deployment as `Running`/`1/1`.
+- Non-dedicated command families (controller/deployments/on-demand/video/listing flows) remain available.
+
 ## Scope
 - Cloud API operations only (`deployment`, `inference`, `video`, `on-demand`).
 - No local RPC command surface in this artifact.
@@ -68,6 +73,18 @@ Then validate read/list endpoints before mutating calls.
   - verify key/token belongs to the intended project/account
   - verify permission scope and key is not revoked
 
+## Dedicated endpoint upstream readiness (502/503)
+
+If inference calls return `THETA_DEDICATED_ENDPOINT_UPSTREAM_UNREADY` (or repeated HTTP `502/503`):
+
+- This typically means auth is accepted at the edge, but the upstream model service is not yet reachable/healthy.
+- Symptom pattern seen in live tests:
+  - unauthenticated `/v1/models` -> `401`
+  - authenticated `/v1/models` and `/v1/chat/completions` -> `502/503`
+  - dashboard may still show deployment `Running` / `1/1`
+
+This points to platform-side ingress/backend readiness mismatch rather than incorrect client credentials.
+
 ## Notes on third-party token mechanisms
 
 Current practical alternatives to entering a raw username/password in OpenClaw are:
@@ -80,20 +97,40 @@ A future OAuth/device-code broker flow could further reduce direct credential ha
 
 ## AI Services coverage (dashboard mapping)
 Current runtime command coverage now includes:
-- On-demand model APIs (`theta.ondemand.*`, live-discovered service catalog)
-- Dedicated deployments (`theta.ai.dedicatedDeployments.list`)
+- Deployments: list + create + stop + delete (`theta.deployments.list|create|stop|delete`)
 - Dedicated model templates (`theta.deployments.listStandard`, `theta.deployments.listCustom`)
+- Dedicated deployments (`theta.ai.dedicatedDeployments.list`)
 - Jupyter notebook (`theta.ai.jupyter.list`)
 - GPU node (`theta.ai.gpuNode.list`)
 - GPU cluster (`theta.ai.gpuCluster.list`)
 - Persistent Storage (`theta.ai.storage.list`)
 - Agentic AI / RAG chatbot listing (`theta.ai.agent.list`)
+- On-demand model APIs (`theta.ondemand.*`, live-discovered service catalog)
+- Dedicated inference endpoint (`theta.inference.models`, `theta.inference.chat`)
+- Theta Video APIs: list/upload/video/stream/ingestor (`theta.video.*`)
 
 Organization/Project model:
 - Website uses Organization + Project scoping.
 - Runtime commands use project-scoped API key auth (`THETA_EC_API_KEY`) and explicit `projectId` arguments.
 - Dashboard user/org management APIs (invite/switch/members) require web-session auth and are intentionally out of scope for this runtime artifact.
 
+## Theta-only OpenClaw option map (no other subscriptions)
+This route can serve as the primary paid execution backend for OpenClaw:
+
+- Website/marketing content generation:
+  - `flux`, `stable_diffusion_*`, `esrgan`, `instant_id`, `stable_viton`, `step_video`, `talking_head`
+- Website AI assistant/chatbot features:
+  - on-demand LLM services (`llama_3_8b`, `llama_3_1_70b`)
+- Vision/media intelligence:
+  - `blip`, `grounding_dino`, `whisper`
+- Video operations:
+  - `theta.video.*` upload/video/stream/ingestor workflows
+- Infra management:
+  - `theta.deployments.*`, `theta.ai.*`, `theta.auth.capabilities`, `theta.billing.balance`
+
+Operational recommendation:
+- Use on-demand + video + controller flows as production-default.
+- Keep dedicated endpoint chat/models as experimental until Theta confirms upstream readiness fix.
 
 ## Tested auth comparison
 Validated in isolated external environment:

@@ -1,8 +1,9 @@
 import { getJson, postJson, putJson } from './http.js';
+import { fromConfigError } from '../errors.js';
 const BASE = 'https://api.thetavideoapi.com';
 function h(cfg) {
     if (!cfg.videoSaId || !cfg.videoSaSecret)
-        throw new Error('THETA_VIDEO_SA_ID / THETA_VIDEO_SA_SECRET missing');
+        throw fromConfigError('THETA_VIDEO_SA_ID / THETA_VIDEO_SA_SECRET missing', 'MISSING_THETA_VIDEO_CREDENTIALS');
     return { 'x-tva-sa-id': cfg.videoSaId, 'x-tva-sa-secret': cfg.videoSaSecret };
 }
 function net(cfg, headers) {

@@ -1,8 +1,9 @@
 import { getJson, postJson } from './http.js';
+import { fromConfigError } from '../errors.js';
 function endpoint(cfg, e) {
     const v = e ?? cfg.inferenceEndpoint;
     if (!v)
-        throw new Error('THETA_INFERENCE_ENDPOINT missing');
+        throw fromConfigError('THETA_INFERENCE_ENDPOINT missing', 'MISSING_THETA_INFERENCE_ENDPOINT');
     return v.replace(/\/$/, '');
 }
 function auth(cfg, a) {

@@ -45,3 +45,12 @@ export function fromTransportError(service, endpoint, error) {
         status: isTimeout ? 408 : undefined
     };
 }
+export function fromConfigError(message, code = 'CONFIG_ERROR') {
+    return {
+        code,
+        message: sanitizeHttpErrorMessage(message),
+        retriable: false,
+        service: 'theta-runtime',
+        endpoint: 'config'
+    };
+}

@@ -1,4 +1,5 @@
 import { onDemandApiClient } from '../clients/ondemandApi.js';
+import { isStructuredError } from '../errors.js';
 import { listOnDemandServices, ONDEMAND_SERVICE_CATALOG } from './ondemandCatalog.js';
 function getFirstInferRequest(payload) {
     if (!payload || typeof payload !== 'object')
@@ -35,11 +36,14 @@ export const ondemand = {
                 }))
                     .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
             }
+            return listOnDemandServices().map((s) => ({ ...s, source: 'catalog' }));
         }
-        catch {
-            // Fall through to static catalog on transient errors.
+        catch (error) {
+            if (isStructuredError(error) && error.code.startsWith('HTTP_')) {
+                throw error;
+            }
+            return listOnDemandServices().map((s) => ({ ...s, source: 'catalog' }));
         }
-        return listOnDemandServices().map((s) => ({ ...s, source: 'catalog' }));
     },
     infer: (cfg, service, payload) => cfg.dryRun ? { dryRun: true, service, payload } : onDemandApiClient.createInferRequest(cfg, service, payload),
     status: (cfg, requestId) => onDemandApiClient.getInferRequest(cfg, requestId),

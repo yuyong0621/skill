@@ -4,6 +4,7 @@ import { healthCheck } from '../commands/health.js';
 import { inference } from '../commands/inference.js';
 import { ondemand } from '../commands/ondemand.js';
 import { video } from '../commands/video.js';
+import { fromConfigError } from '../errors.js';
 import { resolveThetaInferenceAuth, resolveThetaOnDemandToken } from './secretResolver.js';
 function coerceBool(value, fallback) {
     if (value === undefined)
@@ -47,15 +48,23 @@ async function buildRuntimeConfig(ctx) {
 function requireFields(args, fields) {
     for (const field of fields) {
         if (!(field in args) || args[field] === undefined || args[field] === null || args[field] === '') {
-            throw new Error(`Missing required field: ${field}`);
+            throw fromConfigError(`Missing required field: ${field}`, 'MISSING_REQUIRED_FIELD');
         }
     }
 }
 function resolveProjectId(cfg, args) {
     const projectId = args?.projectId ?? cfg.edgecloudProjectId;
     if (!projectId)
-        throw new Error('projectId missing. Set THETA_EC_PROJECT_ID or pass args.projectId. Find it in thetaedgecloud.com -> Account -> Projects (prj_...).');
+        throw fromConfigError('projectId missing. Set THETA_EC_PROJECT_ID or pass args.projectId. Find it in thetaedgecloud.com -> Account -> Projects (prj_...).', 'MISSING_THETA_EC_PROJECT_ID');
     return projectId;
+}
+function resolveDeleteTarget(args) {
+    if (args?.deploymentId)
+        return { deploymentId: String(args.deploymentId) };
+    if (args?.shard !== undefined && args?.suffix !== undefined) {
+        return { shard: Number(args.shard), suffix: String(args.suffix) };
+    }
+    throw fromConfigError('For theta.deployments.delete pass deploymentId OR shard + suffix.', 'MISSING_DEPLOYMENT_DELETE_TARGET');
 }
 function summarizeError(error) {
     let message;
@@ -95,7 +104,7 @@ async function authCapabilities(cfg, args = {}) {
         });
     }
     else {
-        caps.push(await probeCapability('controller.project', () => deployments.listVm(cfg), ['THETA_EC_API_KEY', 'THETA_EC_PROJECT_ID'], 'Project-scoped controller APIs.'));
+        caps.push(await probeCapability('controller.project', () => deployments.list(cfg, cfg.edgecloudProjectId), ['THETA_EC_API_KEY', 'THETA_EC_PROJECT_ID'], 'Project-scoped controller APIs.'));
     }
     const balanceOrgId = overrideOrgId ?? cfg.edgecloudOrgId;
     if (!controllerConfigured || !balanceOrgId) {
@@ -122,7 +131,7 @@ async function authCapabilities(cfg, args = {}) {
     }
     else {
         try {
-            await ondemand.status(cfg, 'infr_rqst_capability_probe_invalid');
+            await ondemand.inputPresignedUrls(cfg, 'flux');
             caps.push({
                 name: 'ondemand.inference',
                 configured: true,
@@ -132,15 +141,13 @@ async function authCapabilities(cfg, args = {}) {
             });
         }
         catch (error) {
-            const message = summarizeError(error).toLowerCase();
-            const maybeAuthorizedNotFound = message.includes('not found') || message.includes('404') || message.includes('invalid request');
             caps.push({
                 name: 'ondemand.inference',
                 configured: true,
-                verified: maybeAuthorizedNotFound,
+                verified: false,
                 required: ['THETA_ONDEMAND_API_TOKEN or THETA_ONDEMAND_API_KEY'],
-                notes: 'Auth probe uses invalid requestId; not-found responses indicate token accepted.',
-                error: maybeAuthorizedNotFound ? undefined : summarizeError(error)
+                notes: 'Auth probe uses input presigned URL endpoint; success verifies token scope.',
+                error: summarizeError(error)
             });
         }
     }
@@ -249,6 +256,25 @@ const commandRegistry = {
         schema: { command: 'theta.deployments.list', description: 'List deployments for project', required: [] },
         handler: (cfg, args) => deployments.list(cfg, resolveProjectId(cfg, args))
     },
+    'theta.deployments.create': {
+        schema: { command: 'theta.deployments.create', description: 'Create deployment in project', required: ['payload'] },
+        handler: (cfg, args) => deployments.create(cfg, {
+            ...args.payload,
+            project_id: args.payload?.project_id ?? resolveProjectId(cfg, args)
+        })
+    },
+    'theta.deployments.stop': {
+        schema: { command: 'theta.deployments.stop', description: 'Stop deployment by shard/suffix', required: ['shard', 'suffix'] },
+        handler: (cfg, args) => deployments.stop(cfg, resolveProjectId(cfg, args), Number(args.shard), String(args.suffix))
+    },
+    'theta.deployments.delete': {
+        schema: { command: 'theta.deployments.delete', description: 'Delete deployment by deploymentId OR shard/suffix', required: [] },
+        handler: (cfg, args) => {
+            const projectId = resolveProjectId(cfg, args);
+            const target = resolveDeleteTarget(args);
+            return deployments.delete(cfg, projectId, target.shard, target.suffix, target.deploymentId);
+        }
+    },
     'theta.deployments.listVm': {
         schema: { command: 'theta.deployments.listVm', description: 'List EdgeCloud VM types', required: [] },
         handler: (cfg) => deployments.listVm(cfg)
@@ -259,7 +285,7 @@ const commandRegistry = {
     },
     'theta.deployments.listStandard': {
         schema: { command: 'theta.deployments.listStandard', description: 'List standard deployment templates by category', required: ['category'] },
-        handler: (cfg, args) => deployments.listStandard(cfg, args.category)
+        handler: (cfg, args) => deployments.listStandard(cfg, args.category, args.page ?? 0, args.number ?? 50)
     },
     'theta.deployments.listCustom': {
         schema: { command: 'theta.deployments.listCustom', description: 'List custom templates for project', required: [] },
@@ -292,6 +318,34 @@ const commandRegistry = {
     'theta.video.list': {
         schema: { command: 'theta.video.list', description: 'List videos for service account', required: ['serviceAccountId'] },
         handler: (cfg, args) => video.videoList(cfg, args.serviceAccountId, args.page ?? 1, args.number ?? 10)
+    },
+    'theta.video.uploadCreate': {
+        schema: { command: 'theta.video.uploadCreate', description: 'Create Theta Video upload session', required: [] },
+        handler: (cfg) => video.uploadCreate(cfg)
+    },
+    'theta.video.videoCreate': {
+        schema: { command: 'theta.video.videoCreate', description: 'Create Theta Video transcoding job', required: ['payload'] },
+        handler: (cfg, args) => video.videoCreate(cfg, args.payload)
+    },
+    'theta.video.videoGet': {
+        schema: { command: 'theta.video.videoGet', description: 'Get Theta Video job by videoId', required: ['videoId'] },
+        handler: (cfg, args) => video.videoGet(cfg, args.videoId)
+    },
+    'theta.video.streamCreate': {
+        schema: { command: 'theta.video.streamCreate', description: 'Create Theta Video livestream', required: ['payload'] },
+        handler: (cfg, args) => video.streamCreate(cfg, args.payload)
+    },
+    'theta.video.streamGet': {
+        schema: { command: 'theta.video.streamGet', description: 'Get Theta Video stream by streamId', required: ['streamId'] },
+        handler: (cfg, args) => video.streamGet(cfg, args.streamId)
+    },
+    'theta.video.ingestor.list': {
+        schema: { command: 'theta.video.ingestor.list', description: 'List available Theta Video ingestors', required: [] },
+        handler: (cfg) => video.ingestorList(cfg)
+    },
+    'theta.video.ingestor.select': {
+        schema: { command: 'theta.video.ingestor.select', description: 'Select Theta Video ingestor', required: ['ingestorId'] },
+        handler: (cfg, args) => video.ingestorSelect(cfg, args.ingestorId, args.body ?? {})
     },
 };
 const onDemandTokenCommands = new Set([

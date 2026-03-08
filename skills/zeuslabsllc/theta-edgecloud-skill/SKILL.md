@@ -13,6 +13,11 @@ metadata:
 
 # Theta EdgeCloud Skill (Cloud API Runtime)
 
+## Known temporary limitation (2026-03-07)
+- **Dedicated inference endpoint (`theta.inference.models`, `theta.inference.chat`) is currently treated as experimental/platform-blocked** due to upstream readiness instability observed in live validation.
+- Observed pattern: deployment appears `Running`/`1/1`, but authenticated endpoint calls can still return persistent `502/503`.
+- Until Theta confirms a platform fix, use these commands as best-effort diagnostics (not production readiness signals).
+
 ## Credential scope model (important)
 This skill is command-scoped: only provide the credentials needed for the command family you use.
 
@@ -86,12 +91,38 @@ This ClawHub artifact is a dist/docs bundle intended for transparent inspection 
 
 
 ## AI Services coverage
+- Deployments API: list + create + stop + delete
+- Dedicated model templates: standard + custom
 - On-demand model APIs: live discovery + infer/status/poll
-- Dedicated deployments and template listing
+- Dedicated inference endpoint: models + chat
+- Dedicated deployments listing
 - Jupyter notebook listing
 - GPU node and GPU cluster listing
 - Persistent storage listing
 - Agentic AI (chatbot) listing
+- Theta Video APIs: list/upload/video/stream/ingestor operations
+
+## Theta-only OpenClaw operating options (no other subscriptions)
+If Theta is the only paid AI backend, this skill can still cover most OpenClaw execution routes:
+
+- Content generation:
+  - image/logo/creative generation (`flux`, `stable_diffusion_*`) via `theta.ondemand.infer`
+  - image enhancement/upscale (`esrgan`)
+  - identity-preserving generation (`instant_id`)
+  - virtual try-on/product visualization (`stable_viton`)
+  - video generation (`step_video`) and talking avatars (`talking_head`)
+- Website AI features:
+  - chatbot/support/Q&A/rewrite pipelines using on-demand LLMs (`llama_3_8b`, `llama_3_1_70b`)
+- Vision/media intelligence:
+  - captioning/alt-text (`blip`), object detection (`grounding_dino`), transcription (`whisper`)
+- Video infrastructure:
+  - upload/video/stream/ingestor operations via `theta.video.*`
+- Compute/ops:
+  - VM/deployment lifecycle + GPU/storage listings + capability/balance checks via `theta.deployments.*`, `theta.ai.*`, `theta.auth.capabilities`, `theta.billing.balance`
+
+Recommended reliability route:
+- Prefer on-demand + video/controller flows for production automation.
+- Keep dedicated endpoint commands (`theta.inference.models`, `theta.inference.chat`) as experimental until platform remediation is confirmed.
 
 ## Organization & Project scope
 - Theta dashboard uses Organization + Project context.
