@@ -8,7 +8,6 @@ tags: ["polymarket", "trading", "btc", "eth", "sol"]
 env:
   - SIMMER_API_KEY
   - TRADING_VENUE
-  - SIMMER_USER_ID
 ---
 
 # Polymarket Simmer FastLoop Trader
@@ -42,16 +41,12 @@ When the latest 5-minute candle shows a rapid spike (momentum > threshold) the s
 | `SIMMER_API_KEY` | **Yes** | Your Simmer SDK key | Get from [simmer.markets](https://simmer.markets) |
 | `TRADING_VENUE` | **Yes** | Execution environment | `simmer` (Paper) or `polymarket` (Live) |
 | `WALLET_PRIVATE_KEY` | Optional | Your Polymarket wallet key | Required only if `TRADING_VENUE="polymarket"` |
-| `SIMMER_USER_ID` | **Yes** | Your SkillPay user ID for billing | Required for per-execution billing via SkillPay |
 
 - **`simmer`** (Default): Paper Trading. Simulates trades using virtual funds. No real USDC needed.
 - **`polymarket`**: Real Trading. Connects to Polymarket. You **must** have USDC in the wallet.
 
 > [!WARNING]
 > Never share your `WALLET_PRIVATE_KEY` or `SIMMER_API_KEY`. The SDK signs trades locally; your private key is never transmitted.
-
-### 3. Billing
-Each execution costs **0.001 USDT** via SkillPay. If your balance is insufficient, a payment link will be provided in the logs.
 
 ## Quick Start
 

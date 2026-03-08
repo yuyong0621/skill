@@ -191,55 +191,8 @@ def _log_trade_to_ledger(trade_id, market_id, side, entry_price, amount, reason,
     _save_ledger(ledger)
 
 # =============================================================================
-# Billing Integration (SkillPay)
+# API Helpers
 # =============================================================================
-
-class BillingManager:
-    API_URL = 'https://skillpay.me'
-    SKILL_ID = '773ab3ef-c55f-4d74-b715-deef4c9cb7d9'
-    DEFAULT_KEY = 'sk_bdd92a043a5e958f6d24f8d29606f1827ff89578ef8ab648e9ae8cb755d243d9'
-
-    def __init__(self, api_key=None):
-        self.api_key = api_key or os.environ.get("SKILLPAY_API_KEY") or self.DEFAULT_KEY
-        self.headers = {
-            'X-API-Key': self.api_key,
-            'Content-Type': 'application/json',
-            'User-Agent': 'simmer-fastloop-billing/1.0'
-        }
-
-    def check_balance(self, user_id):
-        if not user_id:
-            return 0.0
-        url = f'{self.API_URL}/api/v1/billing/balance?user_id={quote(user_id)}'
-        result = _api_request(url, headers=self.headers)
-        if isinstance(result, dict) and 'balance' in result:
-            return float(result['balance'])
-        return 0.0
-
-    def charge_user(self, user_id, amount=0.001):
-        if not user_id:
-            return {'ok': False, 'error': 'No user_id provided'}
-        url = f'{self.API_URL}/api/v1/billing/charge'
-        payload = {
-            'user_id': user_id,
-            'skill_id': self.SKILL_ID,
-            'amount': amount
-        }
-        result = _api_request(url, method='POST', data=payload, headers=self.headers)
-        if isinstance(result, dict) and result.get('success'):
-            return {'ok': True, 'balance': result.get('balance')}
-        
-        balance = result.get('balance', 0) if isinstance(result, dict) else 0
-        payment_url = result.get('payment_url') if isinstance(result, dict) else None
-        return {'ok': False, 'balance': balance, 'payment_url': payment_url}
-
-    def get_payment_link(self, user_id, amount):
-        url = f'{self.API_URL}/api/v1/billing/payment-link'
-        payload = {'user_id': user_id, 'amount': amount}
-        result = _api_request(url, method='POST', data=payload, headers=self.headers)
-        if isinstance(result, dict) and 'payment_url' in result:
-            return result['payment_url']
-        return None
 
 # =============================================================================
 # API Helpers
@@ -796,25 +749,6 @@ def run_strategy(dry_run=True, positions_only=False, show_config=False, quiet=Fa
         return
 
     get_client(live=not dry_run)
-
-    # Billing
-    user_id = os.environ.get("SIMMER_USER_ID")
-    bm = BillingManager()  # Uses hardcoded fallback or SKILLPAY_API_KEY env
-
-    if bm and user_id:
-        log(f"\nBILLING Checking balance for user {user_id[:8]}...")
-        balance = bm.check_balance(user_id)
-        if balance < 0.001:
-            pay_url = bm.get_payment_link(user_id, 1.0)
-            log(f"[FAIL] Insufficient balance (${balance:.3f} USDT)")
-            log(f"Please top up at: {pay_url}", force=True)
-            return
-
-        charge = bm.charge_user(user_id, 0.001)
-        if not charge['ok']:
-            log(f"[FAIL] Billing failed: {charge.get('payment_url') or 'Unknown error'}")
-            return
-        log(f"[OK] Execution charged (Remaining: ${charge['balance']:.3f} USDT)")
 
     if positions_only:
         log("\nChart Positions:")

@@ -5,8 +5,7 @@
     ],
     "env": [
       "SIMMER_API_KEY",
-      "TRADING_VENUE",
-      "SIMMER_USER_ID"
+      "TRADING_VENUE"
     ]
   },
   "cron": "*/5 * * * *",
