@@ -8,8 +8,18 @@ MIN_RUNS="${MIN_RUNS:-2}"
 MAINLINE_BRANCH_MATCH="${MAINLINE_BRANCH_MATCH:-^(main|master|release.*)$}"
 WORKFLOW_MATCH="${WORKFLOW_MATCH:-}"
 WORKFLOW_EXCLUDE="${WORKFLOW_EXCLUDE:-}"
+EVENT_MATCH="${EVENT_MATCH:-}"
+EVENT_EXCLUDE="${EVENT_EXCLUDE:-}"
 REPO_MATCH="${REPO_MATCH:-}"
 REPO_EXCLUDE="${REPO_EXCLUDE:-}"
+HEAD_SHA_MATCH="${HEAD_SHA_MATCH:-}"
+HEAD_SHA_EXCLUDE="${HEAD_SHA_EXCLUDE:-}"
+CONCLUSION_MATCH="${CONCLUSION_MATCH:-}"
+CONCLUSION_EXCLUDE="${CONCLUSION_EXCLUDE:-}"
+RUN_ID_MATCH="${RUN_ID_MATCH:-}"
+RUN_ID_EXCLUDE="${RUN_ID_EXCLUDE:-}"
+RUN_URL_MATCH="${RUN_URL_MATCH:-}"
+RUN_URL_EXCLUDE="${RUN_URL_EXCLUDE:-}"
 FAIL_WARN_PERCENT="${FAIL_WARN_PERCENT:-20}"
 FAIL_CRITICAL_PERCENT="${FAIL_CRITICAL_PERCENT:-40}"
 STALE_SUCCESS_DAYS="${STALE_SUCCESS_DAYS:-7}"
@@ -45,7 +55,7 @@ if [[ "$FAIL_ON_CRITICAL" != "0" && "$FAIL_ON_CRITICAL" != "1" ]]; then
   exit 1
 fi
 
-python3 - "$RUN_GLOB" "$TOP_N" "$OUTPUT_FORMAT" "$MIN_RUNS" "$MAINLINE_BRANCH_MATCH" "$WORKFLOW_MATCH" "$WORKFLOW_EXCLUDE" "$REPO_MATCH" "$REPO_EXCLUDE" "$FAIL_WARN_PERCENT" "$FAIL_CRITICAL_PERCENT" "$STALE_SUCCESS_DAYS" "$WARN_SCORE" "$CRITICAL_SCORE" "$FAIL_ON_CRITICAL" <<'PY'
+python3 - "$RUN_GLOB" "$TOP_N" "$OUTPUT_FORMAT" "$MIN_RUNS" "$MAINLINE_BRANCH_MATCH" "$WORKFLOW_MATCH" "$WORKFLOW_EXCLUDE" "$EVENT_MATCH" "$EVENT_EXCLUDE" "$REPO_MATCH" "$REPO_EXCLUDE" "$HEAD_SHA_MATCH" "$HEAD_SHA_EXCLUDE" "$CONCLUSION_MATCH" "$CONCLUSION_EXCLUDE" "$RUN_ID_MATCH" "$RUN_ID_EXCLUDE" "$RUN_URL_MATCH" "$RUN_URL_EXCLUDE" "$FAIL_WARN_PERCENT" "$FAIL_CRITICAL_PERCENT" "$STALE_SUCCESS_DAYS" "$WARN_SCORE" "$CRITICAL_SCORE" "$FAIL_ON_CRITICAL" <<'PY'
 import glob
 import json
 import re
@@ -60,14 +70,24 @@ min_runs = int(sys.argv[4])
 mainline_branch_match_raw = sys.argv[5]
 workflow_match_raw = sys.argv[6]
 workflow_exclude_raw = sys.argv[7]
-repo_match_raw = sys.argv[8]
-repo_exclude_raw = sys.argv[9]
-warn_pct = float(sys.argv[10])
-critical_pct = float(sys.argv[11])
-stale_success_days = float(sys.argv[12])
-warn_score = float(sys.argv[13])
-critical_score = float(sys.argv[14])
-fail_on_critical = sys.argv[15] == '1'
+event_match_raw = sys.argv[8]
+event_exclude_raw = sys.argv[9]
+repo_match_raw = sys.argv[10]
+repo_exclude_raw = sys.argv[11]
+head_sha_match_raw = sys.argv[12]
+head_sha_exclude_raw = sys.argv[13]
+conclusion_match_raw = sys.argv[14]
+conclusion_exclude_raw = sys.argv[15]
+run_id_match_raw = sys.argv[16]
+run_id_exclude_raw = sys.argv[17]
+run_url_match_raw = sys.argv[18]
+run_url_exclude_raw = sys.argv[19]
+warn_pct = float(sys.argv[20])
+critical_pct = float(sys.argv[21])
+stale_success_days = float(sys.argv[22])
+warn_score = float(sys.argv[23])
+critical_score = float(sys.argv[24])
+fail_on_critical = sys.argv[25] == '1'
 
 if critical_pct < warn_pct:
     print('ERROR: FAIL_CRITICAL_PERCENT must be >= FAIL_WARN_PERCENT', file=sys.stderr)
@@ -93,8 +113,18 @@ def compile_regex(pattern, label, required=False):
 mainline_branch_match = compile_regex(mainline_branch_match_raw, 'MAINLINE_BRANCH_MATCH', required=True)
 workflow_match = compile_regex(workflow_match_raw, 'WORKFLOW_MATCH')
 workflow_exclude = compile_regex(workflow_exclude_raw, 'WORKFLOW_EXCLUDE')
+event_match = compile_regex(event_match_raw, 'EVENT_MATCH')
+event_exclude = compile_regex(event_exclude_raw, 'EVENT_EXCLUDE')
 repo_match = compile_regex(repo_match_raw, 'REPO_MATCH')
 repo_exclude = compile_regex(repo_exclude_raw, 'REPO_EXCLUDE')
+head_sha_match = compile_regex(head_sha_match_raw, 'HEAD_SHA_MATCH')
+head_sha_exclude = compile_regex(head_sha_exclude_raw, 'HEAD_SHA_EXCLUDE')
+conclusion_match = compile_regex(conclusion_match_raw, 'CONCLUSION_MATCH')
+conclusion_exclude = compile_regex(conclusion_exclude_raw, 'CONCLUSION_EXCLUDE')
+run_id_match = compile_regex(run_id_match_raw, 'RUN_ID_MATCH')
+run_id_exclude = compile_regex(run_id_exclude_raw, 'RUN_ID_EXCLUDE')
+run_url_match = compile_regex(run_url_match_raw, 'RUN_URL_MATCH')
+run_url_exclude = compile_regex(run_url_exclude_raw, 'RUN_URL_EXCLUDE')
 
 
 failure_outcomes = {'failure', 'cancelled', 'timed_out', 'startup_failure', 'stale', 'action_required'}
@@ -140,6 +170,7 @@ agg = defaultdict(lambda: {
     'repository': None,
     'workflow': None,
     'branch': None,
+    'event': None,
     'outcomes': defaultdict(int),
     'runs': [],
     'sample_urls': [],
@@ -161,12 +192,22 @@ for path in files:
         continue
 
     workflow = payload.get('workflowName') or payload.get('name') or '<unknown-workflow>'
+    event = payload.get('event') or '<unknown-event>'
     repository = normalize_repo(payload.get('repository'))
+    head_sha = payload.get('headSha') or payload.get('head_sha') or '<unknown-sha>'
+    run_id = str(payload.get('databaseId') or payload.get('id') or '<unknown-run-id>')
+    run_url = str(payload.get('url') or '')
 
     if workflow_match and not workflow_match.search(workflow):
         runs_filtered += 1
         continue
     if workflow_exclude and workflow_exclude.search(workflow):
+        runs_filtered += 1
+        continue
+    if event_match and not event_match.search(event):
+        runs_filtered += 1
+        continue
+    if event_exclude and event_exclude.search(event):
         runs_filtered += 1
         continue
     if repo_match and not repo_match.search(repository):
@@ -175,17 +216,42 @@ for path in files:
     if repo_exclude and repo_exclude.search(repository):
         runs_filtered += 1
         continue
+    if head_sha_match and not head_sha_match.search(head_sha):
+        runs_filtered += 1
+        continue
+    if head_sha_exclude and head_sha_exclude.search(head_sha):
+        runs_filtered += 1
+        continue
 
     conclusion = (payload.get('conclusion') or payload.get('status') or 'unknown').lower()
+    if conclusion_match and not conclusion_match.search(conclusion):
+        runs_filtered += 1
+        continue
+    if conclusion_exclude and conclusion_exclude.search(conclusion):
+        runs_filtered += 1
+        continue
+    if run_id_match and not run_id_match.search(run_id):
+        runs_filtered += 1
+        continue
+    if run_id_exclude and run_id_exclude.search(run_id):
+        runs_filtered += 1
+        continue
+    if run_url_match and not run_url_match.search(run_url):
+        runs_filtered += 1
+        continue
+    if run_url_exclude and run_url_exclude.search(run_url):
+        runs_filtered += 1
+        continue
+
     created_at = parse_ts(payload.get('createdAt') or payload.get('runStartedAt') or payload.get('startedAt'))
     updated_at = parse_ts(payload.get('updatedAt') or payload.get('completedAt'))
-    run_url = payload.get('url')
 
-    key = (repository, workflow, branch)
+    key = (repository, workflow, branch, event)
     bucket = agg[key]
     bucket['repository'] = repository
     bucket['workflow'] = workflow
     bucket['branch'] = branch
+    bucket['event'] = event
     bucket['outcomes'][conclusion] += 1
     bucket['runs'].append({
         'created_at': created_at,
@@ -261,6 +327,7 @@ for bucket in agg.values():
         'repository': bucket['repository'],
         'workflow': bucket['workflow'],
         'branch': bucket['branch'],
+        'event': bucket['event'],
         'total_runs': total_runs,
         'failed_runs': failed_runs,
         'success_runs': success_runs,
@@ -281,7 +348,7 @@ for bucket in agg.values():
     if severity == 'critical':
         critical_groups.append(row)
 
-groups.sort(key=lambda row: (-row['health_score'], -row['failure_rate_percent'], -row['consecutive_failures'], row['repository'], row['workflow'], row['branch']))
+groups.sort(key=lambda row: (-row['health_score'], -row['failure_rate_percent'], -row['consecutive_failures'], row['repository'], row['workflow'], row['branch'], row['event']))
 
 summary = {
     'files_scanned': len(files),
@@ -302,8 +369,18 @@ summary = {
         'mainline_branch_match': mainline_branch_match_raw,
         'workflow_match': workflow_match_raw or None,
         'workflow_exclude': workflow_exclude_raw or None,
+        'event_match': event_match_raw or None,
+        'event_exclude': event_exclude_raw or None,
         'repo_match': repo_match_raw or None,
         'repo_exclude': repo_exclude_raw or None,
+        'head_sha_match': head_sha_match_raw or None,
+        'head_sha_exclude': head_sha_exclude_raw or None,
+        'conclusion_match': conclusion_match_raw or None,
+        'conclusion_exclude': conclusion_exclude_raw or None,
+        'run_id_match': run_id_match_raw or None,
+        'run_id_exclude': run_id_exclude_raw or None,
+        'run_url_match': run_url_match_raw or None,
+        'run_url_exclude': run_url_exclude_raw or None,
     },
 }
 
@@ -327,8 +404,18 @@ else:
         f"mainline={mainline_branch_match_raw}",
         f"workflow={workflow_match_raw}" if workflow_match_raw else None,
         f"workflow!={workflow_exclude_raw}" if workflow_exclude_raw else None,
+        f"event={event_match_raw}" if event_match_raw else None,
+        f"event!={event_exclude_raw}" if event_exclude_raw else None,
         f"repo={repo_match_raw}" if repo_match_raw else None,
         f"repo!={repo_exclude_raw}" if repo_exclude_raw else None,
+        f"sha={head_sha_match_raw}" if head_sha_match_raw else None,
+        f"sha!={head_sha_exclude_raw}" if head_sha_exclude_raw else None,
+        f"conclusion={conclusion_match_raw}" if conclusion_match_raw else None,
+        f"conclusion!={conclusion_exclude_raw}" if conclusion_exclude_raw else None,
+        f"run_id={run_id_match_raw}" if run_id_match_raw else None,
+        f"run_id!={run_id_exclude_raw}" if run_id_exclude_raw else None,
+        f"run_url={run_url_match_raw}" if run_url_match_raw else None,
+        f"run_url!={run_url_exclude_raw}" if run_url_exclude_raw else None,
     ]
     active_filters = [f for f in active_filters if f]
     if active_filters:
@@ -341,7 +428,7 @@ else:
     else:
         for row in groups[:top_n]:
             print(
-                f"- [{row['severity']}] {row['repository']} :: {row['workflow']} :: branch={row['branch']} "
+                f"- [{row['severity']}] {row['repository']} :: {row['workflow']} :: branch={row['branch']} event={row['event']} "
                 f"health_score={row['health_score']} failure_rate={row['failure_rate_percent']}% "
                 f"failed={row['failed_runs']}/{row['total_runs']} consecutive_failures={row['consecutive_failures']} "
                 f"days_since_success={row['days_since_success']}"

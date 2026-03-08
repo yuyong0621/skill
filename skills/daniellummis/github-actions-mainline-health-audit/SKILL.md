@@ -1,7 +1,7 @@
 ---
 name: github-actions-mainline-health-audit
 description: Audit GitHub Actions mainline branch reliability by scoring failure rate, consecutive failures, and stale-success risk for critical workflows.
-version: 1.0.0
+version: 1.4.0
 metadata: {"openclaw":{"requires":{"bins":["bash","python3"]}}}
 ---
 
@@ -12,7 +12,7 @@ Use this skill to detect unstable workflows on protected branches (main/master/r
 ## What this skill does
 - Reads GitHub Actions run JSON exports
 - Filters to mainline/protected branches (configurable regex)
-- Groups by repository + workflow + branch
+- Groups by repository + workflow + branch + event
 - Scores risk using:
   - failure rate
   - current consecutive failure streak
@@ -29,8 +29,18 @@ Optional:
 - `MAINLINE_BRANCH_MATCH` (default: `^(main|master|release.*)$`)
 - `WORKFLOW_MATCH` (regex, optional)
 - `WORKFLOW_EXCLUDE` (regex, optional)
+- `EVENT_MATCH` (regex, optional)
+- `EVENT_EXCLUDE` (regex, optional)
 - `REPO_MATCH` (regex, optional)
 - `REPO_EXCLUDE` (regex, optional)
+- `HEAD_SHA_MATCH` (regex, optional)
+- `HEAD_SHA_EXCLUDE` (regex, optional)
+- `CONCLUSION_MATCH` (regex, optional)
+- `CONCLUSION_EXCLUDE` (regex, optional)
+- `RUN_ID_MATCH` (regex, optional)
+- `RUN_ID_EXCLUDE` (regex, optional)
+- `RUN_URL_MATCH` (regex, optional)
+- `RUN_URL_EXCLUDE` (regex, optional)
 - `FAIL_WARN_PERCENT` (default: `20`)
 - `FAIL_CRITICAL_PERCENT` (default: `40`)
 - `STALE_SUCCESS_DAYS` (default: `7`)
@@ -52,6 +62,9 @@ Text report:
 ```bash
 RUN_GLOB='artifacts/github-actions/*.json' \
 MAINLINE_BRANCH_MATCH='^(main|release/.*)$' \
+HEAD_SHA_MATCH='^[a-f0-9]{7,40}$' \
+CONCLUSION_EXCLUDE='^(success)$' \
+RUN_ID_MATCH='^50(0[1-5])$' \
 MIN_RUNS=3 \
 bash skills/github-actions-mainline-health-audit/scripts/mainline-health-audit.sh
 ```
