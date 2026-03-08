@@ -1,0 +1,11 @@
+{
+  "owner": "signalgridco",
+  "slug": "signalgrid-activity",
+  "displayName": "Signalgrid Activity",
+  "latest": {
+    "version": "1.0.3",
+    "publishedAt": 1772994038113,
+    "commit": null
+  },
+  "history": []
+}
