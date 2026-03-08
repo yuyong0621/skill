@@ -3,11 +3,16 @@
   "slug": "audio-enhance",
   "displayName": "Audio Enhance",
   "latest": {
-    "version": "1.0.1",
-    "publishedAt": 1772781895712,
-    "commit": "https://github.com/openclaw/skills/commit/4699894763700acd3fd5224829129043cf5ce813"
+    "version": "1.0.2",
+    "publishedAt": 1772866142399,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.1",
+      "publishedAt": 1772781895712,
+      "commit": "https://github.com/openclaw/skills/commit/4699894763700acd3fd5224829129043cf5ce813"
+    },
     {
       "version": "1.0.0",
       "publishedAt": 1772647871932,
