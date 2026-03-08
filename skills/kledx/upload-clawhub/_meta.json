@@ -3,9 +3,15 @@
   "slug": "upload-clawhub",
   "displayName": "Upload Clawhub",
   "latest": {
-    "version": "6.0.3",
-    "publishedAt": 1772819511076,
-    "commit": "https://github.com/openclaw/skills/commit/0906802e7f592f1fa9953eb05b03807726a205f9"
+    "version": "6.0.5",
+    "publishedAt": 1772893800895,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "6.0.3",
+      "publishedAt": 1772819511076,
+      "commit": "https://github.com/openclaw/skills/commit/0906802e7f592f1fa9953eb05b03807726a205f9"
+    }
+  ]
 }
