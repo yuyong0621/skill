@@ -3,11 +3,16 @@
   "slug": "vincentpolymarket",
   "displayName": "Vincent - Polymarket",
   "latest": {
-    "version": "1.0.65",
-    "publishedAt": 1772491242211,
-    "commit": "https://github.com/openclaw/skills/commit/1e0bd95a312c155bfc94e16c31a9821785d903ea"
+    "version": "1.0.68",
+    "publishedAt": 1773009151854,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.65",
+      "publishedAt": 1772491242211,
+      "commit": "https://github.com/openclaw/skills/commit/1e0bd95a312c155bfc94e16c31a9821785d903ea"
+    },
     {
       "version": "1.0.62",
       "publishedAt": 1772161299173,
