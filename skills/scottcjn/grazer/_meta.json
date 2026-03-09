@@ -3,11 +3,16 @@
   "slug": "grazer",
   "displayName": "Grazer",
   "latest": {
-    "version": "1.7.0",
-    "publishedAt": 1772306785551,
-    "commit": "https://github.com/openclaw/skills/commit/9d38a7a7faa0026b4c33aa9ac4a9d5144e2dbf1f"
+    "version": "1.9.0",
+    "publishedAt": 1773012973072,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.7.0",
+      "publishedAt": 1772306785551,
+      "commit": "https://github.com/openclaw/skills/commit/9d38a7a7faa0026b4c33aa9ac4a9d5144e2dbf1f"
+    },
     {
       "version": "1.3.1",
       "publishedAt": 1771091533796,
