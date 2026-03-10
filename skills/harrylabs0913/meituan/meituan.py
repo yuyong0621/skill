@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""美团助手 - 支持外卖搜索、团购、红包"""
+"""美团助手 - 支持外卖搜索、红包、订单"""
 
 import argparse
 import asyncio
@@ -20,46 +20,39 @@ except ImportError:
     sys.exit(1)
 
 # 配置
-CONFIG_DIR = Path.home() / ".meituan"
-COOKIES_FILE = CONFIG_DIR / "cookies.json"
+CONFIG_DIR = Path.home() / ".openclaw" / "data" / "meituan"
 DB_FILE = CONFIG_DIR / "meituan.db"
-CONFIG_DIR.mkdir(exist_ok=True)
+COOKIES_FILE = CONFIG_DIR / "cookies.json"
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 @dataclass
-class FoodItem:
-    """外卖商品数据类"""
+class Restaurant:
+    """餐厅数据类"""
     id: str
     name: str
-    restaurant: str
-    price: float
-    original_price: Optional[float]
     rating: float
     sales: str
     delivery_time: str
     delivery_fee: str
+    min_order: str
+    address: str
     url: str
     image: str
 
 @dataclass
-class Deal:
-    """团购优惠数据类"""
+class Order:
+    """订单数据类"""
     id: str
-    title: str
-    category: str
-    price: float
-    original_price: float
-    discount: str
-    location: str
-    sold: str
-    url: str
-    image: str
+    restaurant: str
+    items: str
+    total: float
+    status: str
+    created_at: str
 
 class MeituanClient:
     """美团客户端"""
     
     BASE_URL = "https://www.meituan.com"
-    WAIMAI_URL = "https://waimai.meituan.com"
-    TUAN_URL = "https://www.meituan.com/deal"
     
     def __init__(self):
         self.browser: Optional[Browser] = None
@@ -70,34 +63,29 @@ class MeituanClient:
         """初始化SQLite数据库"""
         conn = sqlite3.connect(DB_FILE)
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS foods (
+            CREATE TABLE IF NOT EXISTS restaurants (
                 id TEXT PRIMARY KEY,
                 name TEXT,
-                restaurant TEXT,
-                price REAL,
-                original_price REAL,
                 rating REAL,
                 sales TEXT,
                 delivery_time TEXT,
                 delivery_fee TEXT,
+                min_order TEXT,
+                address TEXT,
                 url TEXT,
                 image TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS deals (
+            CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
-                title TEXT,
-                category TEXT,
-                price REAL,
-                original_price REAL,
-                discount TEXT,
-                location TEXT,
-                sold TEXT,
-                url TEXT,
-                image TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                restaurant TEXT,
+                items TEXT,
+                total REAL,
+                status TEXT,
+                created_at TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         conn.execute("""
@@ -117,8 +105,7 @@ class MeituanClient:
         """初始化浏览器"""
         playwright = await async_playwright().start()
         self.browser = await playwright.chromium.launch(
-            headless=headless,
-            args=['--disable-blink-features=AutomationControlled']
+            headless=headless
         )
         context = await self.browser.new_context(
             viewport={'width': 1920, 'height': 1080},
@@ -127,15 +114,16 @@ class MeituanClient:
         
         # 加载cookies
         if COOKIES_FILE.exists():
-            cookies = json.loads(COOKIES_FILE.read_text())
+            with open(COOKIES_FILE, 'r') as f:
+                cookies = json.load(f)
             await context.add_cookies(cookies)
         
         self.page = await context.new_page()
         
-        # 注入反检测脚本
+        # 浏览器兼容性处理
         await self.page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
+                get: () => false
             });
         """)
     
@@ -149,42 +137,48 @@ class MeituanClient:
         await self.init_browser(headless=False)
         
         print("正在打开美团登录页面...")
-        await self.page.goto("https://passport.meituan.com/account/unitivelogin")
+        await self.page.goto("https://account.meituan.com/account/login")
         
         # 等待用户扫码登录
         print("请使用美团APP扫码登录...")
         try:
-            await self.page.wait_for_selector(".user-info", timeout=120000)
+            await self.page.wait_for_selector(".user-info, .username", timeout=120000)
             
             # 保存cookies
             cookies = await self.page.context.cookies()
-            COOKIES_FILE.write_text(json.dumps(cookies))
-            print(f"登录成功！Cookies已保存到 {COOKIES_FILE}")
+            with open(COOKIES_FILE, 'w') as f:
+                json.dump(cookies, f)
+            print(f"✅ 登录成功！Cookies已保存到 {COOKIES_FILE}")
         except Exception as e:
             print(f"登录超时或失败: {e}")
         
         await self.close()
     
-    async def search_food(self, keyword: str, location: str = "北京") -> List[FoodItem]:
+    async def search_food(self, keyword: str, location: str = "北京", limit: int = 20) -> List[Restaurant]:
         """搜索外卖"""
         if not self.page:
             await self.init_browser()
         
-        encoded_keyword = quote(keyword)
-        url = f"{self.WAIMAI_URL}/home/{encoded_keyword}"
+        print(f"正在搜索: {keyword} (地点: {location})")
+        search_url = f"https://waimai.meituan.com/home/{quote(location)}"
+        await self.page.goto(search_url, wait_until="networkidle")
+        await asyncio.sleep(2)
         
-        print(f"正在搜索外卖: {keyword}")
-        await self.page.goto(url, wait_until="networkidle")
-        await asyncio.sleep(3)
+        # 输入搜索关键词
+        search_input = await self.page.query_selector("input[placeholder*='搜索']")
+        if search_input:
+            await search_input.fill(keyword)
+            await search_input.press("Enter")
+            await asyncio.sleep(3)
         
-        foods = []
+        restaurants = []
         
         try:
             # 等待商家列表加载
-            await self.page.wait_for_selector(".restaurant-item", timeout=10000)
-            items = await self.page.query_selector_all(".restaurant-item")
+            await self.page.wait_for_selector(".shop-item, .restaurant-item, .shop-card", timeout=10000)
+            items = await self.page.query_selector_all(".shop-item, .restaurant-item, .shop-card")
             
-            for item in items[:15]:
+            for item in items[:limit]:
                 try:
                     link_el = await item.query_selector("a")
                     url = await link_el.get_attribute("href") if link_el else ""
@@ -193,145 +187,72 @@ class MeituanClient:
                     
                     # 提取商家ID
                     restaurant_id = ""
-                    if "/restaurant/" in url:
-                        restaurant_id = url.split("/restaurant/")[-1].split("?")[0]
+                    if "/shop/" in url:
+                        restaurant_id = url.split("/shop/")[-1].split("?")[0]
+                    elif "shopId=" in url:
+                        restaurant_id = url.split("shopId=")[-1].split("&")[0]
                     
-                    name_el = await item.query_selector(".restaurant-name")
+                    name_el = await item.query_selector(".shop-name, .restaurant-name, h3, .title")
                     name = await name_el.inner_text() if name_el else ""
                     
-                    rating_el = await item.query_selector(".rating")
+                    rating_el = await item.query_selector(".rating, .score, .rate")
                     rating_text = await rating_el.inner_text() if rating_el else "0"
-                    rating = float(rating_text.strip() or 0)
+                    try:
+                        rating = float(rating_text.strip().replace("分", "").replace("评分", "") or 0)
+                    except:
+                        rating = 0
                     
-                    sales_el = await item.query_selector(".sales")
+                    sales_el = await item.query_selector(".sales, .order-count, .month-sales")
                     sales = await sales_el.inner_text() if sales_el else ""
                     
-                    time_el = await item.query_selector(".delivery-time")
+                    time_el = await item.query_selector(".delivery-time, .time, .avg-time")
                     delivery_time = await time_el.inner_text() if time_el else ""
                     
-                    fee_el = await item.query_selector(".delivery-fee")
+                    fee_el = await item.query_selector(".delivery-fee, .fee, .shipping-fee")
                     delivery_fee = await fee_el.inner_text() if fee_el else ""
+                    
+                    min_el = await item.query_selector(".min-order, .min-price, .start-price")
+                    min_order = await min_el.inner_text() if min_el else ""
+                    
+                    addr_el = await item.query_selector(".address, .location")
+                    address = await addr_el.inner_text() if addr_el else ""
                     
                     img_el = await item.query_selector("img")
                     image = await img_el.get_attribute("src") if img_el else ""
                     
-                    food = FoodItem(
+                    restaurant = Restaurant(
                         id=restaurant_id,
                         name=name.strip(),
-                        restaurant=name.strip(),
-                        price=0,
-                        original_price=None,
                         rating=rating,
                         sales=sales,
                         delivery_time=delivery_time,
                         delivery_fee=delivery_fee,
+                        min_order=min_order,
+                        address=address,
                         url=url,
                         image=image if image.startswith("http") else f"https:{image}"
                     )
-                    foods.append(food)
-                    self._save_food(food)
+                    restaurants.append(restaurant)
+                    self._save_restaurant(restaurant)
                     
                 except Exception as e:
                     continue
                     
         except Exception as e:
-            print(f"搜索外卖失败: {e}")
+            print(f"搜索失败: {e}")
         
-        return foods
+        return restaurants
     
-    def _save_food(self, food: FoodItem):
-        """保存外卖到数据库"""
+    def _save_restaurant(self, restaurant: Restaurant):
+        """保存餐厅到数据库"""
         cursor = self.db.cursor()
         cursor.execute("""
-            INSERT OR REPLACE INTO foods 
-            (id, name, restaurant, price, original_price, rating, sales, delivery_time, delivery_fee, url, image)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (food.id, food.name, food.restaurant, food.price, food.original_price,
-              food.rating, food.sales, food.delivery_time, food.delivery_fee, food.url, food.image))
-        self.db.commit()
-    
-    async def get_deals(self, category: str = "all") -> List[Deal]:
-        """获取团购优惠"""
-        if not self.page:
-            await self.init_browser()
-        
-        print("正在获取团购优惠...")
-        await self.page.goto(self.TUAN_URL, wait_until="networkidle")
-        await asyncio.sleep(3)
-        
-        deals = []
-        
-        try:
-            # 等待团购列表加载
-            await self.page.wait_for_selector(".deal-item", timeout=10000)
-            items = await self.page.query_selector_all(".deal-item")
-            
-            for item in items[:15]:
-                try:
-                    link_el = await item.query_selector("a")
-                    url = await link_el.get_attribute("href") if link_el else ""
-                    if url and not url.startswith("http"):
-                        url = f"https:{url}"
-                    
-                    deal_id = ""
-                    if "/deal/" in url:
-                        deal_id = url.split("/deal/")[-1].split("?")[0]
-                    
-                    title_el = await item.query_selector(".deal-title")
-                    title = await title_el.inner_text() if title_el else ""
-                    
-                    price_el = await item.query_selector(".deal-price")
-                    price_text = await price_el.inner_text() if price_el else "0"
-                    price = float(price_text.replace("¥", "").strip() or 0)
-                    
-                    original_el = await item.query_selector(".original-price")
-                    original_text = await original_el.inner_text() if original_el else "0"
-                    original_price = float(original_text.replace("¥", "").strip() or 0)
-                    
-                    discount_el = await item.query_selector(".discount")
-                    discount = await discount_el.inner_text() if discount_el else ""
-                    
-                    location_el = await item.query_selector(".location")
-                    location = await location_el.inner_text() if location_el else ""
-                    
-                    sold_el = await item.query_selector(".sold-count")
-                    sold = await sold_el.inner_text() if sold_el else ""
-                    
-                    img_el = await item.query_selector("img")
-                    image = await img_el.get_attribute("src") if img_el else ""
-                    
-                    deal = Deal(
-                        id=deal_id,
-                        title=title.strip(),
-                        category=category,
-                        price=price,
-                        original_price=original_price,
-                        discount=discount,
-                        location=location,
-                        sold=sold,
-                        url=url,
-                        image=image if image.startswith("http") else f"https:{image}"
-                    )
-                    deals.append(deal)
-                    self._save_deal(deal)
-                    
-                except Exception as e:
-                    continue
-                    
-        except Exception as e:
-            print(f"获取团购失败: {e}")
-        
-        return deals
-    
-    def _save_deal(self, deal: Deal):
-        """保存团购到数据库"""
-        cursor = self.db.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO deals 
-            (id, title, category, price, original_price, discount, location, sold, url, image)
+            INSERT OR REPLACE INTO restaurants 
+            (id, name, rating, sales, delivery_time, delivery_fee, min_order, address, url, image)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (deal.id, deal.title, deal.category, deal.price, deal.original_price,
-              deal.discount, deal.location, deal.sold, deal.url, deal.image))
+        """, (restaurant.id, restaurant.name, restaurant.rating, restaurant.sales,
+              restaurant.delivery_time, restaurant.delivery_fee, restaurant.min_order, 
+              restaurant.address, restaurant.url, restaurant.image))
         self.db.commit()
     
     async def get_redpackets(self) -> List[dict]:
@@ -340,24 +261,24 @@ class MeituanClient:
             await self.init_browser()
         
         print("正在查询红包...")
-        await self.page.goto("https://www.meituan.com/redpacket", wait_until="networkidle")
+        await self.page.goto("https://www.meituan.com/coupons", wait_until="networkidle")
         await asyncio.sleep(2)
         
         redpackets = []
         try:
-            items = await self.page.query_selector_all(".redpacket-item")
+            items = await self.page.query_selector_all(".coupon-item, .redpacket-item, .coupon-card")
             for item in items[:10]:
                 try:
-                    name_el = await item.query_selector(".rp-name")
+                    name_el = await item.query_selector(".coupon-name, .name, .title")
                     name = await name_el.inner_text() if name_el else ""
                     
-                    value_el = await item.query_selector(".rp-value")
+                    value_el = await item.query_selector(".coupon-value, .amount, .value")
                     value = await value_el.inner_text() if value_el else ""
                     
-                    limit_el = await item.query_selector(".rp-limit")
+                    limit_el = await item.query_selector(".coupon-limit, .condition, .limit")
                     limit = await limit_el.inner_text() if limit_el else ""
                     
-                    expiry_el = await item.query_selector(".rp-expiry")
+                    expiry_el = await item.query_selector(".expiry, .validity, .expire-time")
                     expiry = await expiry_el.inner_text() if expiry_el else ""
                     
                     redpackets.append({
@@ -372,71 +293,179 @@ class MeituanClient:
             print(f"获取红包失败: {e}")
         
         return redpackets
-
-def format_food(f: FoodItem, index: int) -> str:
-    """格式化外卖输出"""
-    rating_str = f"⭐{f.rating}" if f.rating else ""
-    time_str = f" | {f.delivery_time}" if f.delivery_time else ""
-    fee_str = f" | 配送{f.delivery_fee}" if f.delivery_fee else ""
     
-    return f"""
-[{index}] {f.name[:40]}{'...' if len(f.name) > 40 else ''}
-    {rating_str} {f.sales}{time_str}{fee_str}
-    链接: {f.url}
-"""
-
-def format_deal(d: Deal, index: int) -> str:
-    """格式化团购输出"""
-    discount_str = f" [{d.discount}]" if d.discount else ""
-    sold_str = f" | 已售{d.sold}" if d.sold else ""
-    location_str = f" | {d.location}" if d.location else ""
+    async def get_orders(self) -> List[Order]:
+        """获取订单"""
+        if not self.page:
+            await self.init_browser()
+        
+        print("正在查询订单...")
+        await self.page.goto("https://www.meituan.com/orders", wait_until="networkidle")
+        await asyncio.sleep(2)
+        
+        orders = []
+        try:
+            items = await self.page.query_selector_all(".order-item, .order-card")
+            for item in items[:20]:
+                try:
+                    id_el = await item.query_selector(".order-id, .order-no")
+                    order_id = await id_el.inner_text() if id_el else ""
+                    
+                    rest_el = await item.query_selector(".restaurant-name, .shop-name")
+                    restaurant = await rest_el.inner_text() if rest_el else ""
+                    
+                    items_el = await item.query_selector(".order-items, .items")
+                    items_text = await items_el.inner_text() if items_el else ""
+                    
+                    total_el = await item.query_selector(".total, .amount")
+                    total_text = await total_el.inner_text() if total_el else "0"
+                    try:
+                        total = float(total_text.replace("¥", "").replace("元", "").strip() or 0)
+                    except:
+                        total = 0
+                    
+                    status_el = await item.query_selector(".status, .order-status")
+                    status = await status_el.inner_text() if status_el else ""
+                    
+                    time_el = await item.query_selector(".time, .create-time")
+                    created_at = await time_el.inner_text() if time_el else ""
+                    
+                    order = Order(
+                        id=order_id.strip(),
+                        restaurant=restaurant.strip(),
+                        items=items_text.strip(),
+                        total=total,
+                        status=status.strip(),
+                        created_at=created_at.strip()
+                    )
+                    orders.append(order)
+                    self._save_order(order)
+                except:
+                    continue
+        except Exception as e:
+            print(f"获取订单失败: {e}")
+        
+        return orders
     
-    return f"""
-[{index}]{discount_str} {d.title[:40]}{'...' if len(d.title) > 40 else ''}
-    价格: ¥{d.price:.2f} (原价¥{d.original_price:.2f}){sold_str}{location_str}
-    链接: {d.url}
-"""
+    def _save_order(self, order: Order):
+        """保存订单到数据库"""
+        cursor = self.db.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO orders 
+            (id, restaurant, items, total, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (order.id, order.restaurant, order.items, order.total, order.status, order.created_at))
+        self.db.commit()
+
+
+def print_restaurants(restaurants: List[Restaurant]):
+    """打印餐厅列表"""
+    if not restaurants:
+        print("未找到餐厅")
+        return
+    
+    print(f"\n找到 {len(restaurants)} 家餐厅:\n")
+    print(f"{'名称':<25} {'评分':<6} {'销量':<12} {'配送时间':<10} {'配送费':<10} {'起送价':<10}")
+    print("-" * 90)
+    
+    for r in restaurants:
+        name = r.name[:23] if len(r.name) > 23 else r.name
+        rating = f"{r.rating:.1f}" if r.rating else "N/A"
+        sales = r.sales[:10] if r.sales else "N/A"
+        time = r.delivery_time[:8] if r.delivery_time else "N/A"
+        fee = r.delivery_fee[:8] if r.delivery_fee else "N/A"
+        min_order = r.min_order[:8] if r.min_order else "N/A"
+        print(f"{name:<25} {rating:<6} {sales:<12} {time:<10} {fee:<10} {min_order:<10}")
+
+
+def print_redpackets(redpackets: List[dict]):
+    """打印红包列表"""
+    if not redpackets:
+        print("暂无红包")
+        return
+    
+    print(f"\n找到 {len(redpackets)} 个红包:\n")
+    print(f"{'名称':<30} {'金额':<10} {'使用条件':<20} {'有效期':<15}")
+    print("-" * 80)
+    
+    for rp in redpackets:
+        name = rp.get('name', '')[:28]
+        value = rp.get('value', '')[:8]
+        limit = rp.get('limit', '')[:18]
+        expiry = rp.get('expiry', '')[:13]
+        print(f"{name:<30} {value:<10} {limit:<20} {expiry:<15}")
+
+
+def print_orders(orders: List[Order]):
+    """打印订单列表"""
+    if not orders:
+        print("暂无订单")
+        return
+    
+    print(f"\n找到 {len(orders)} 个订单:\n")
+    print(f"{'订单号':<20} {'餐厅':<25} {'金额':<10} {'状态':<12} {'时间':<20}")
+    print("-" * 95)
+    
+    for o in orders:
+        order_id = o.id[:18] if len(o.id) > 18 else o.id
+        restaurant = o.restaurant[:23] if len(o.restaurant) > 23 else o.restaurant
+        total = f"¥{o.total:.2f}"
+        status = o.status[:10] if o.status else "N/A"
+        time = o.created_at[:18] if o.created_at else "N/A"
+        print(f"{order_id:<20} {restaurant:<25} {total:<10} {status:<12} {time:<20}")
+
 
 async def main():
     parser = argparse.ArgumentParser(description="美团助手")
-    parser.add_argument("command", choices=["food", "deal", "redpacket", "login"])
-    parser.add_argument("arg", nargs="?", help="搜索关键词")
-    parser.add_argument("--location", default="北京", help="城市位置")
+    parser.add_argument("command", choices=["food", "login", "redpacket", "order"], help="命令")
+    parser.add_argument("query", nargs="?", help="搜索关键词")
+    parser.add_argument("--location", "-l", default="北京", help="地点 (默认: 北京)")
+    parser.add_argument("--limit", "-n", type=int, default=20, help="结果数量 (默认: 20)")
+    parser.add_argument("--headless", action="store_true", default=True, help="无头模式")
+    parser.add_argument("--no-headless", action="store_false", dest="headless", help="显示浏览器")
+    parser.add_argument("--json", "-j", action="store_true", help="JSON输出")
     
     args = parser.parse_args()
     
     client = MeituanClient()
     
-    try:
-        if args.command == "login":
-            await client.login()
+    if args.command == "login":
+        await client.login()
+    
+    elif args.command == "food":
+        if not args.query:
+            print("请提供搜索关键词，例如: meituan food 火锅")
+            sys.exit(1)
         
-        elif args.command == "food":
-            if not args.arg:
-                print("请提供搜索关键词")
-                return
-            foods = await client.search_food(args.arg, args.location)
-            print(f"\n找到 {len(foods)} 家外卖:\n")
-            for i, f in enumerate(foods, 1):
-                print(format_food(f, i))
+        restaurants = await client.search_food(args.query, args.location, args.limit)
         
-        elif args.command == "deal":
-            deals = await client.get_deals()
-            print(f"\n团购优惠 ({len(deals)} 个):\n")
-            for i, d in enumerate(deals, 1):
-                print(format_deal(d, i))
+        if args.json:
+            print(json.dumps([r.__dict__ for r in restaurants], ensure_ascii=False, indent=2))
+        else:
+            print_restaurants(restaurants)
         
-        elif args.command == "redpacket":
-            redpackets = await client.get_redpackets()
-            print(f"\n找到 {len(redpackets)} 个红包:\n")
-            for i, r in enumerate(redpackets, 1):
-                print(f"[{i}] {r['name']}")
-                print(f"    金额: {r['value']}")
-                print(f"    使用条件: {r['limit']}")
-                print(f"    有效期: {r['expiry']}\n")
-        
-    finally:
         await client.close()
+    
+    elif args.command == "redpacket":
+        redpackets = await client.get_redpackets()
+        
+        if args.json:
+            print(json.dumps(redpackets, ensure_ascii=False, indent=2))
+        else:
+            print_redpackets(redpackets)
+        
+        await client.close()
+    
+    elif args.command == "order":
+        orders = await client.get_orders()
+        
+        if args.json:
+            print(json.dumps([o.__dict__ for o in orders], ensure_ascii=False, indent=2))
+        else:
+            print_orders(orders)
+        
+        await client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
