@@ -3,9 +3,15 @@
   "slug": "bitrefill-website",
   "displayName": "Shop on Bitrefill",
   "latest": {
-    "version": "1.1.0",
-    "publishedAt": 1771519313037,
-    "commit": "https://github.com/openclaw/skills/commit/63de19386d92a920adeb4834446196e8fce1b90d"
+    "version": "1.2.1",
+    "publishedAt": 1773102289195,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.1.0",
+      "publishedAt": 1771519313037,
+      "commit": "https://github.com/openclaw/skills/commit/63de19386d92a920adeb4834446196e8fce1b90d"
+    }
+  ]
 }
