@@ -3,9 +3,15 @@
   "slug": "tencentcloud-ocr-bizlicense",
   "displayName": "TencentCloud BizLicense OCR",
   "latest": {
-    "version": "1.0.1",
-    "publishedAt": 1772961391790,
-    "commit": "https://github.com/openclaw/skills/commit/20c30362fb6d970fd50fbff7ddad01a62c238ec1"
+    "version": "1.0.2",
+    "publishedAt": 1773109952965,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.1",
+      "publishedAt": 1772961391790,
+      "commit": "https://github.com/openclaw/skills/commit/20c30362fb6d970fd50fbff7ddad01a62c238ec1"
+    }
+  ]
 }
