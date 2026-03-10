@@ -24,7 +24,7 @@ All data is persisted via MCP tool calls → Wayve API → Azure SQL Database. N
 - `log_entry` — logs one entry (requires `audit_id`, `what_did_you_do`, `energy_level`)
 - `report` — generates report from all entries (requires `audit_id`)
 
-**There is no `list` or `get` action.** You cannot retrieve existing audits without the `audit_id`. Always save the `audit_id` from the `start` response — both in the cron job messages and via knowledge base.
+**There is no `list` or `get` action.** You cannot retrieve existing audits without the `audit_id`. Always save the `audit_id` from the `start` response — both in the automation config and via knowledge base.
 
 ## Flow
 
@@ -92,7 +92,7 @@ wayve_manage_time_audit(
   channel: "telegram"
 )
 ```
-The response contains an `id` field — this is the `audit_id`. **You need this ID for every subsequent call.** Confirm: "Audit created ✓"
+The response contains an `id` field — this is the `audit_id`. **You need this ID for every subsequent call.** Confirm: "Audit created"
 
 **Step 2: Save settings to knowledge base**
 
@@ -102,116 +102,63 @@ wayve_manage_knowledge(action: "save_insight", category: "personal_context", key
 wayve_manage_knowledge(action: "save_insight", category: "personal_context", key: "active_hours", value: "Mon-Thu HH:MM-HH:MM, Fri-Sun HH:MM-HH:MM")
 wayve_manage_knowledge(action: "save_insight", category: "preferences", key: "time_audit_config", value: "audit_id: AUDIT_ID, interval: 30min, channel: telegram, duration: 7 days, start: YYYY-MM-DD, end: YYYY-MM-DD")
 ```
-**Important:** Include the `audit_id` in the config so future sessions can find it. Confirm: "Settings saved ✓"
+**Important:** Include the `audit_id` in the config so future sessions can find it. Confirm: "Settings saved"
 
-**Step 3: Create all automations**
+**Step 3: Create automations via server-side scheduling**
 
-Present these as a batch and ask permission once: "I'll set up 5 automations — check-ins, daily summary, auto-cleanup, final report invite, and a follow-up after a week. OK to create all of them?"
+Present these as a batch and ask permission once: "I'll set up check-in notifications and a daily summary via Wayve automations. OK to create them?"
 
-After the user says yes, create each one immediately using `cron.add`. Do NOT stop between crons to ask again.
+After the user says yes, create each one immediately using `wayve_manage_automations`. These run server-side — they work on every platform.
 
-**3a. Check-in cron** (recurring, every interval during active hours):
-```json
-{
-  "name": "Wayve Time Audit Check-in",
-  "schedule": { "kind": "cron", "expr": "*/30 ACTIVE_START-ACTIVE_END * * *", "tz": "USER_TIMEZONE" },
-  "sessionTarget": "isolated",
-  "payload": {
-    "kind": "agentTurn",
-    "message": "Send this check-in message to the user:\n\n⏱️ Time check!\n\nWhat have you been doing for the last 30 minutes?\nHow's your energy? (1=drained, 5=energized)\n\nQuick reply — e.g., \"emails, 2\" or \"gym, 5\"\n\n👉 https://gowayve.com/time-audit\n\nWhen the user replies, you MUST log their response immediately:\n1. Parse their reply — e.g., \"emails, 2\" means what_did_you_do: \"emails\", energy_level: 2\n2. Call wayve_get_planning_context to get the user's buckets, then match the activity to the right bucket\n3. Call wayve_manage_time_audit(action: \"log_entry\", audit_id: \"AUDIT_ID\", what_did_you_do: \"...\", energy_level: N, bucket_id: \"...\") to save the entry\n4. Confirm briefly: \"Logged: [activity] → [bucket], energy [N]/5 ✓\"\n\nDo NOT skip the wayve_manage_time_audit call. If you don't log it, the entry is lost."
-  },
-  "delivery": { "mode": "announce", "channel": "USER_CHANNEL", "to": "USER_CHANNEL_ID" }
-}
+**3a. Check-in automation** (recurring, during active hours):
 ```
-**Important:** Replace `AUDIT_ID` with the actual audit ID from Step 2 before creating this cron.
-
-Confirm: "Check-in cron ✓ — every 30 min during active hours"
-
-**3b. Daily summary cron** (recurring, every evening):
-```json
-{
-  "name": "Wayve Audit Daily Summary",
-  "schedule": { "kind": "cron", "expr": "30 21 * * *", "tz": "USER_TIMEZONE" },
-  "sessionTarget": "isolated",
-  "payload": {
-    "kind": "agentTurn",
-    "message": "The user has an active time audit. Call wayve_manage_time_audit(action: 'report', audit_id: 'AUDIT_ID') to get current stats. Deliver a brief daily summary: how many entries were logged today, top buckets by time, average energy level, and any patterns noticed. Encourage them to keep going — 'X days left in the audit.' End with: 'View your audit: https://gowayve.com/time-audit'"
-  },
-  "delivery": { "mode": "announce", "channel": "USER_CHANNEL", "to": "USER_CHANNEL_ID" }
-}
+wayve_manage_automations(
+  action: 'create',
+  automation_type: 'time_audit_checkin',
+  timezone: 'USER_TIMEZONE',
+  schedule_cron: '*/30 ACTIVE_START_HOUR-ACTIVE_END_HOUR * * *',
+  delivery_channel: 'USER_CHANNEL',
+  delivery_config: { ... },
+  config: { audit_id: 'AUDIT_ID' }
+)
 ```
-**Important:** Replace `AUDIT_ID` with the actual audit ID from Step 1 before creating this cron.
+Confirm: "Check-in automation created — every 30 min during active hours"
 
-Confirm: "Daily summary ✓ — every evening at 21:30"
-
-**3c. Auto-cleanup** (one-shot, at audit end):
-```json
-{
-  "name": "Wayve Time Audit Cleanup",
-  "schedule": { "kind": "at", "at": "AUDIT_END_DATE_T20:30:00+OFFSET" },
-  "sessionTarget": "main",
-  "deleteAfterRun": true,
-  "payload": {
-    "kind": "systemEvent",
-    "text": "Time audit period ended. Delete the 'Wayve Time Audit Check-in' and 'Wayve Audit Daily Summary' cron jobs."
-  }
-}
+**3b. Evening wind-down as daily summary** (recurring, every evening):
 ```
-Confirm: "Auto-cleanup ✓ — stops all audit notifications on [end date]"
-
-**3d. Final report invite** (one-shot, morning after audit ends):
-```json
-{
-  "name": "Wayve Time Audit Final Report",
-  "schedule": { "kind": "at", "at": "AUDIT_END_DATE_T10:00:00+OFFSET" },
-  "sessionTarget": "isolated",
-  "deleteAfterRun": true,
-  "payload": {
-    "kind": "agentTurn",
-    "message": "The user's 7-day time audit just ended. Send them a warm congratulations — tracking for a full week takes commitment. Let them know you have their results ready and would love to walk through them together: where their time went, what energized vs. drained them, and what they might want to change. Include the link https://gowayve.com/time-audit and tell them to say 'show me my results' when they're ready. Keep it brief and inviting — 4-6 lines max."
-  },
-  "delivery": { "mode": "announce", "channel": "USER_CHANNEL", "to": "USER_CHANNEL_ID" }
-}
+wayve_manage_automations(
+  action: 'create',
+  automation_type: 'evening_winddown',
+  timezone: 'USER_TIMEZONE',
+  schedule_cron: '30 21 * * *',
+  delivery_channel: 'USER_CHANNEL',
+  delivery_config: { ... }
+)
 ```
-Confirm: "Final report invite ✓ — sent morning of [end date + 1]"
-
-**3e. Follow-up check-in** (one-shot, 7 days after audit ends):
-```json
-{
-  "name": "Wayve Time Audit Follow-Up",
-  "schedule": { "kind": "at", "at": "AUDIT_END_DATE_PLUS_7_DAYS_T10:00:00+OFFSET" },
-  "sessionTarget": "isolated",
-  "deleteAfterRun": true,
-  "payload": {
-    "kind": "agentTurn",
-    "message": "It's been a week since the user's time audit ended. Send a casual check-in: ask how things are going, whether they've noticed any shifts in how they spend their time. No pressure — even small changes count. Offer to look at this week together. Include links to https://gowayve.com/analytics and https://gowayve.com/week. Keep it warm and brief — 4-6 lines max."
-  },
-  "delivery": { "mode": "announce", "channel": "USER_CHANNEL", "to": "USER_CHANNEL_ID" }
-}
-```
-Confirm: "Follow-up ✓ — check-in on [end date + 7]"
+Confirm: "Daily summary automation created — every evening at 21:30"
 
 **Step 4: Verify everything is set up**
 
-After creating all crons, verify and present a summary to the user:
+After creating all automations, verify and present a summary to the user:
 
-1. Call `wayve_manage_time_audit(action: "report", audit_id: "AUDIT_ID")` to confirm the audit exists and is accessible
-2. Present a complete summary:
+1. Call `wayve_manage_time_audit(action: "report", audit_id: "AUDIT_ID")` to confirm the audit exists
+2. Call `wayve_manage_automations(action: 'list')` to confirm automations are active
+3. Present a complete summary:
 
 > **All set! Here's what's live:**
 >
 > | What | Status | Schedule |
 > |------|--------|----------|
-> | Time audit | ✓ Active | [start] → [end] |
-> | Check-in notifications | ✓ Active | Every 30 min, [active hours] |
-> | Daily summary | ✓ Active | Every day at 21:30 |
-> | Auto-cleanup | ✓ Scheduled | [end date] |
-> | Final report invite | ✓ Scheduled | [end date + 1 morning] |
-> | Follow-up | ✓ Scheduled | [end date + 7 morning] |
+> | Time audit | Active | [start] → [end] |
+> | Check-in notifications | Active | Every 30 min, [active hours] |
+> | Daily summary | Active | Every day at 21:30 |
 >
 > **Your first check-in arrives [start date] at [active_hours_start].** Just reply with what you're doing and your energy level — e.g., "deep work, 4" or "gym, 5".
->
-> 👉 Track your audit: https://gowayve.com/time-audit
+
+After the audit end date, disable the time_audit_checkin automation:
+```
+wayve_manage_automations(action: 'update', id: 'CHECKIN_ID', enabled: false)
+```
 
 If any step failed, tell the user which one and retry it. Do not move on until everything is confirmed working.
 
@@ -233,7 +180,7 @@ When the user responds to a check-in, keep it fast — 30 seconds per entry max.
      note: "optional note"    // optional
    )
    ```
-4. Reply with a short confirmation only — no commentary, no advice. E.g., "Logged: Emails → Work, energy 2/5 ✓"
+4. Reply with a short confirmation only — no commentary, no advice. E.g., "Logged: Emails → Work, energy 2/5"
 
 **Quick-log shorthand**: If the user says "gym, 5" or "meeting with client, 3, low skill" — parse it and log without follow-ups. Still call the tool — no exceptions.
 

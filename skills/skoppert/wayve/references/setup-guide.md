@@ -15,19 +15,21 @@ clawhub install wayve
 3. Go to [gowayve.com/account](https://gowayve.com/account) → **API Keys** section
 4. Generate a new key and copy it — it starts with `wk_live_`
 
-## 3. Add Your API Key
+## 3. Add Your API Key (recommended: SecretRefs)
 
-Add your key to your OpenClaw secrets file (`~/.openclaw/secrets.json`):
+Use OpenClaw's secrets workflow instead of storing plaintext keys in `openclaw.json`.
 
-```json
-{
-  "WAYVE_API_KEY": "wk_live_YOUR_API_KEY"
-}
+1. Run:
+
+```bash
+openclaw secrets configure
+openclaw secrets audit --check
+openclaw secrets reload
 ```
 
-The key name must be `WAYVE_API_KEY` — this is the environment variable the MCP server reads at startup.
+2. Store `WAYVE_API_KEY` in your configured secret provider (for example file-backed secrets), and map the Wayve skill `apiKey` to that SecretRef.
 
-Then reference it in your OpenClaw config (`~/.openclaw/openclaw.json`):
+3. Keep your OpenClaw config referencing the secret (not the raw key), for example:
 
 ```json
 {
@@ -42,25 +44,13 @@ Then reference it in your OpenClaw config (`~/.openclaw/openclaw.json`):
 }
 ```
 
-This keeps your key in the secrets file (which has restricted permissions) and out of your main config. OpenClaw resolves it at startup and injects it as the `WAYVE_API_KEY` environment variable for the MCP server.
+This keeps credentials out of plaintext config and supports safe reload/rotation via `openclaw secrets reload`.
 
-## 4. Connect the MCP Server
-
-You need **Node.js 18+** installed ([nodejs.org](https://nodejs.org)).
-
-Run this in Claude Code:
-
-```
-/mcp add wayve -- npx -y @gowayve/wayve@^1.2.5
-```
-
-The pinned version (`@^1.2.5`) ensures you get a verified release. The MCP server picks up your `WAYVE_API_KEY` from the OpenClaw config automatically — no need to pass it as an argument.
-
-## 5. Verify
+## 4. Verify
 
 Type `/wayve help` to see all available commands. If the assistant responds with a list of commands and calls `wayve_get_planning_context`, you're all set.
 
-## 6. Get Started
+## 5. Get Started
 
 - `/wayve setup` — first-time onboarding (create life buckets, set preferences)
 - `/wayve plan` — plan your week
@@ -69,10 +59,27 @@ Type `/wayve help` to see all available commands. If the assistant responds with
 - `/wayve time audit` — track where your time goes
 - `/wayve life audit` — deep life review
 
+## 6. Automations (Optional)
+
+Set up server-side push notifications for proactive check-ins:
+- Morning daily briefs
+- Sunday wrap-up reminders
+- Monday fresh start nudges
+- Mid-week pulse checks
+- Frequency alerts
+
+Delivery via Telegram, Discord, Slack, email, or pull (shown at session start).
+
+Say "set up automations" and Wayve will walk you through choosing a delivery channel and creating a bundle. See `references/automations.md` for full details.
+
 ## Troubleshooting
 
-**No wayve tools showing up:** Make sure Node.js 18+ is installed (`node --version`) and restart Claude Code after adding the config.
+**No wayve tools showing up:** Make sure Node.js 18+ is installed (`node --version`) and restart your client. If the MCP server still doesn't connect, you can add it manually in Claude Code:
+
+```
+/mcp add wayve -- npx -y @gowayve/wayve@^1.2.5
+```
 
 **"Invalid API key":** Keys must start with `wk_live_`. Generate a new one at [gowayve.com/account](https://gowayve.com/account).
 
-**Key not being picked up:** Make sure your key is in `~/.openclaw/secrets.json` under `/wayve/apiKey` and that `~/.openclaw/openclaw.json` has the secret reference under `skills.entries.wayve.apiKey`. Restart OpenClaw after changes.
+**Key not being picked up:** Make sure `WAYVE_API_KEY` is stored in your secret provider and that `~/.openclaw/openclaw.json` has the SecretRef under `skills.entries.wayve.apiKey`. Run `openclaw secrets audit --check` to verify, then `openclaw secrets reload`.

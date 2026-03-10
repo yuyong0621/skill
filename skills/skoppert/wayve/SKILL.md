@@ -75,7 +75,11 @@ Never guess or hallucinate data about the user's activities, buckets, or schedul
 
 ## Proactive Automations
 
-After completing onboarding or any ritual, offer to set up cron jobs for proactive check-ins (morning briefs, Sunday wrap-up reminders, Monday planning nudges). Read `references/automations.md` for the full setup guide, cron job templates, and best practices. Always ask for explicit permission before creating any automation — never silently schedule. Clearly explain what each automation does before the user confirms.
+After completing onboarding or any ritual, offer to set up server-side push notifications for proactive check-ins (morning briefs, Sunday wrap-up reminders, Monday planning nudges). Read `references/automations.md` for the full setup guide, automation types, delivery channels, and bundles.
+
+Use `wayve_manage_automations` to create, list, update, and delete automations. Delivery via Telegram, Discord, Slack, email, or pull model (shown at session start).
+
+Always ask for explicit permission before creating any automation — never silently schedule. Clearly explain what each automation does before the user confirms.
 
 ## Smart Suggestions
 
