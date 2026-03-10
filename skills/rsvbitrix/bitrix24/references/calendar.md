@@ -4,63 +4,104 @@ Use this file for personal calendars, group calendars, meetings, sections, recur
 
 ## Core Methods
 
-- `calendar.section.get`
-- `calendar.section.add`
-- `calendar.section.delete`
-- `calendar.event.get`
-- `calendar.event.getbyid`
-- `calendar.event.add`
-- `calendar.event.update`
-- `calendar.event.delete`
-- `calendar.accessibility.get`
-- `calendar.meeting.status.get`
+- `calendar.event.get` — list events in a date range (requires `type` and `ownerId`)
+- `calendar.event.get.nearest` — list upcoming events (simplest way to get schedule)
+- `calendar.event.getbyid` — get one event by ID
+- `calendar.event.add` — create event
+- `calendar.event.update` — update event
+- `calendar.event.delete` — delete event
+- `calendar.section.get` — list calendars (sections)
+- `calendar.section.add` — create calendar
+- `calendar.accessibility.get` — check user availability
+- `calendar.meeting.status.get` — get current user's meeting participation status
+- `calendar.resource.list` — list calendar resources
 
-The current MCP server also surfaced user and resource settings methods, but the list above covers the most common agent workflows.
+There is NO `calendar.get` or `calendar.list` method. Always use the full method names above.
+
+## Critical: Required Parameters
+
+`calendar.event.get` requires two mandatory parameters:
+
+- `type` — one of: `user`, `group`, `company_calendar`
+- `ownerId` — user ID for `user` type, group ID for `group`, `0` for `company_calendar`
+
+Without these, the call fails with `ERROR_METHOD_NOT_FOUND` or similar.
+
+`from` and `to` use date format `YYYY-MM-DD` (not datetime). Defaults: `from` = 1 month ago, `to` = 3 months ahead.
+
+## Common Use Cases
+
+### Show schedule via batch (preferred — one HTTP call)
+
+Combine calendar + tasks in one request:
+
+```bash
+python3 scripts/bitrix24_batch.py \
+  --cmd 'events=calendar.event.get?type=user&ownerId=1&from=2026-03-11&to=2026-03-11' \
+  --cmd 'tasks=tasks.task.list?filter[RESPONSIBLE_ID]=1&filter[>=DEADLINE]=2026-03-11T00:00:00&filter[<=DEADLINE]=2026-03-11T23:59:59&select[]=ID&select[]=TITLE&select[]=DEADLINE&select[]=STATUS' \
+  --json
+```
+
+### Show user's schedule for a specific day
+
+Get user ID from cached config or `user.current`, then query events:
+
+```bash
+python3 scripts/bitrix24_call.py user.current --json
+python3 scripts/bitrix24_call.py calendar.event.get \
+  --param 'type=user' \
+  --param 'ownerId=1' \
+  --param 'from=2026-03-10' \
+  --param 'to=2026-03-10' \
+  --json
+```
+
+### Show upcoming events (easiest for "what's on my schedule")
+
+```bash
+python3 scripts/bitrix24_call.py calendar.event.get.nearest \
+  --param 'type=user' \
+  --param 'ownerId=1' \
+  --param 'days=7' \
+  --param 'forCurrentUser=true' \
+  --json
+```
+
+### Check availability before scheduling
+
+```bash
+python3 scripts/bitrix24_call.py calendar.accessibility.get \
+  --param 'users[]=1' \
+  --param 'users[]=2' \
+  --param 'from=2026-03-10' \
+  --param 'to=2026-03-11' \
+  --json
+```
+
+### Create an event
+
+```bash
+python3 scripts/bitrix24_call.py calendar.event.add \
+  --param 'type=user' \
+  --param 'ownerId=1' \
+  --param 'name=Team Meeting' \
+  --param 'from=2026-03-10T10:00:00' \
+  --param 'to=2026-03-10T11:00:00' \
+  --json
+```
 
 ## Working Rules
 
-- Pass calendar type explicitly, usually `user`, `group`, or `company_calendar`.
-- Use `ownerId` with the correct owner for that calendar type.
-- Use `calendar.event.getbyid` when you already know the event ID.
-- For attendee conflicts or meeting scheduling, check `calendar.accessibility.get` before proposing a slot.
-- Keep time zone handling explicit in date-time values.
-
-## Minimal Examples
-
-Create an event:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}calendar.event.add.json" \
-  -d 'type=user&ownerId=1&name=Team Meeting&from=2026-03-01T10:00:00&to=2026-03-01T11:00:00'
-```
-
-List events in a range:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}calendar.event.get.json" \
-  -d 'type=user&ownerId=1&from=2026-03-01&to=2026-03-31'
-```
-
-Get a single event:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}calendar.event.getbyid.json" \
-  -d 'id=123'
-```
-
-Check availability:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}calendar.accessibility.get.json" \
-  -d 'users[]=1&users[]=2&from=2026-03-01&to=2026-03-02'
-```
-
-## Recurrence
-
-Recurring rules are carried in `rrule[...]`. Re-check exact supported fields with `bitrix-method-details calendar.event.add` before generating complicated recurrence payloads.
+- Always pass `type` and `ownerId` for `calendar.event.get`.
+- Use `calendar.event.get.nearest` for "show my schedule" — it needs fewer parameters.
+- Get user ID from `user.current` first if you don't know it.
+- Check `calendar.accessibility.get` before proposing meeting slots.
+- For read-only requests, execute immediately — do not ask permission.
+- One retry on first failure, then report blocker.
 
 ## Good MCP Queries
 
-- `calendar event section`
+- `calendar event get nearest`
 - `calendar accessibility`
-- `calendar recurrence`
+- `calendar section`
+- `calendar resource booking`

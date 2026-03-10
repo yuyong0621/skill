@@ -2,122 +2,139 @@
 
 Use this file for messenger dialogs, chats, history, notifications, and file delivery into chats.
 
+> **Channels** (каналы / объявления) — see `references/channels.md`. Channels use the same `im.*` methods but with `ENTITY_TYPE=ANNOUNCEMENT` and `type: openChannel`.
+
 ## Separate `im.*` From `imbot.*`
 
-Use `im.*` when the integration acts through normal IM REST methods:
+Use `im.*` for normal IM REST methods (webhook-compatible):
 
-- `im.message.add`
-- `im.message.update`
-- `im.message.delete`
-- `im.chat.add`
-- `im.chat.get`
-- `im.chat.update`
-- `im.chat.user.add`
-- `im.chat.user.delete`
-- `im.chat.user.list`
-- `im.chat.leave`
-- `im.dialog.get`
-- `im.dialog.messages.get`
-- `im.recent.list`
-- `im.recent.get`
-- `im.recent.unread`
+- `im.message.add` — send message
+- `im.message.update` / `im.message.delete`
+- `im.message.share` — create entity (task/event/post) from a message
+- `im.chat.add` / `im.chat.get` / `im.chat.update`
+- `im.chat.user.add` / `im.chat.user.delete` / `im.chat.user.list`
+- `im.dialog.get` / `im.dialog.messages.get`
+- `im.dialog.messages.search` — search messages in a specific chat
+- `im.dialog.users.list` — list dialog participants
+- `im.dialog.read.all` — mark all chats as read
+- `im.recent.list` / `im.recent.get`
+- `im.dialog.writing` — typing indicator
 
-Use `imbot.*` for bot/plugin scenarios. The previous OpenClaw channel plugin used:
+Use `imbot.*` for bot scenarios (requires `CLIENT_ID`):
 
-- `imbot.message.add`
-- `imbot.dialog.get`
+- `imbot.message.add` / `imbot.message.update` / `imbot.message.delete`
+- `imbot.chat.add` / `imbot.dialog.get`
+- `imbot.chat.sendTyping`
 
-Critical rule for `imbot.*`:
-
-- bot registration must include `CLIENT_ID`
-- persist that exact `CLIENT_ID`
-- pass the same `CLIENT_ID` in every subsequent `imbot.*` call
-- treat `CLIENT_ID` as a secret capability, not as a public identifier
-
-Reason: Bitrix24 uses `CLIENT_ID` to ensure that arbitrary callers cannot control arbitrary bots. Only the bot creator should know it.
-
-Historical integration note from the earlier Claw implementation:
-
-- a stable `CLIENT_ID` derived from `md5(webhook)` was used
-- that is a valid pattern if the value stays stable per bot and is not exposed
-
-Do not mix `im.*` and `imbot.*` casually. Pick the family that matches the integration model.
-
-## Bot Registration Note
-
-If the workflow includes `imbot.register`:
-
-- choose a deterministic `CLIENT_ID`
-- save it next to the bot configuration
-- reuse it for `imbot.message.add`, `imbot.message.update`, `imbot.message.delete`, `imbot.chat.sendTyping`, and other `imbot.*` methods
-
-If the stored `CLIENT_ID` is lost, assume the bot control path is broken until the integration restores the same value or re-registers the bot correctly.
+Do not mix `im.*` and `imbot.*` — pick the family that matches the integration.
 
 ## Notifications
 
-Confirmed notification methods:
+- `im.notify.system.add` — system notification (app context only)
+- `im.notify.personal.add` — personal notification (app context only)
+- `im.notify.read` — mark notification as read
 
-- `im.notify.system.add`
-- `im.notify.personal.add`
-- `im.notify.read`
-
-Important caveat from current MCP docs: both `im.notify.system.add` and `im.notify.personal.add` are documented as available only when called through an application. If a plain webhook flow fails with an auth-type error, re-check the access model and do not keep retrying blindly.
-
-## Files Into Chat
-
-Confirmed chat file method:
-
-- `im.disk.file.commit`
-
-It accepts either:
-
-- `FILE_ID`
-- `UPLOAD_ID`
-
-and one of:
-
-- `CHAT_ID`
-- `DIALOG_ID`
-
-Use this after a file already exists on Disk.
+Important: `im.notify.system.add` and `im.notify.personal.add` work only through an application, not plain webhooks. If you get auth errors, this is likely the reason.
 
 ## Dialog Addressing
 
-Common dialog formats:
+- `123` — direct dialog with user 123
+- `chat456` — group chat 456
+- `sg789` — group or project chat
 
-- `123` for a direct dialog with user `123`
-- `chat456` for group chat `456`
-- `sg789` for a group or project chat
+## Common Use Cases
 
-## Minimal Examples
-
-Send a message:
+### Send a message to a chat
 
 ```bash
-curl -s "${BITRIX24_WEBHOOK_URL}im.message.add.json" \
-  -d 'DIALOG_ID=chat42&MESSAGE=Hello team'
+python3 scripts/bitrix24_call.py im.message.add \
+  --param 'DIALOG_ID=chat42' \
+  --param 'MESSAGE=Hello team' \
+  --json
 ```
 
-Read dialog history:
+### Read dialog history
 
 ```bash
-curl -s "${BITRIX24_WEBHOOK_URL}im.dialog.messages.get.json" \
-  -d 'DIALOG_ID=chat42&LIMIT=20'
+python3 scripts/bitrix24_call.py im.dialog.messages.get \
+  --param 'DIALOG_ID=chat42' \
+  --param 'LIMIT=20' \
+  --json
 ```
 
-Send an existing Disk file to chat:
+### Send a Disk file to chat
 
 ```bash
-curl -s "${BITRIX24_WEBHOOK_URL}im.disk.file.commit.json" \
-  -d 'CHAT_ID=42&FILE_ID[]=5249&MESSAGE=Project files'
+python3 scripts/bitrix24_call.py im.disk.file.commit \
+  --param 'CHAT_ID=42' \
+  --param 'FILE_ID[]=5249' \
+  --param 'MESSAGE=Project files' \
+  --json
 ```
 
-## Formatting Note
+### Create a group chat
 
-Bitrix24 chat rendering still relies heavily on BB-code conventions. If the surrounding integration already converts Markdown to BB-code, do not double-convert.
+```bash
+python3 scripts/bitrix24_call.py im.chat.add \
+  --param 'TYPE=CHAT' \
+  --param 'TITLE=Project discussion' \
+  --param 'USERS[]=1' \
+  --param 'USERS[]=2' \
+  --json
+```
+
+### Search messages in a chat
+
+```bash
+python3 scripts/bitrix24_call.py im.dialog.messages.search \
+  --param 'CHAT_ID=42' \
+  --param 'SEARCH_MESSAGE=contract' \
+  --param 'LIMIT=20' \
+  --json
+```
+
+Supports date filters: `DATE_FROM`, `DATE_TO` (ISO 8601), `DATE` (single day).
+Search string must be longer than 2 characters. Returns messages, users, and files.
+
+### Create task from a chat message
+
+```bash
+python3 scripts/bitrix24_call.py im.message.share \
+  --param 'MESSAGE_ID=34261' \
+  --param 'DIALOG_ID=chat42' \
+  --param 'TYPE=TASK' \
+  --json
+```
+
+`TYPE` values: `TASK` (task), `CALEND` (calendar event), `POST` (feed post), `CHAT` (forward to chat).
+Get `MESSAGE_ID` from `im.dialog.messages.get` or `im.dialog.messages.search`.
+
+### Mark all chats as read
+
+```bash
+python3 scripts/bitrix24_call.py im.dialog.read.all --json
+```
+
+No parameters needed. Marks all dialogs as read for the current user.
+
+## `CLIENT_ID` for Bots
+
+For `imbot.*` methods:
+
+- Provide `CLIENT_ID` when registering the bot
+- Persist it and reuse in every `imbot.*` call
+- Treat `CLIENT_ID` as a secret
+
+## Formatting
+
+Bitrix24 chat uses BB-code. Do not double-convert if Markdown is already converted to BB-code.
 
 ## Good MCP Queries
 
-- `im message chat notify dialog recent`
+- `im message add chat`
+- `im message share`
+- `im dialog messages search`
+- `im dialog read all`
 - `imbot message`
+- `im dialog messages get`
 - `im disk file commit`

@@ -1,76 +1,125 @@
-# Users and Structure
+# Users, Departments, and Org Structure
 
-Use this file for user lookup, department structure, messenger-side org search, and colleague or manager resolution.
+Use this file for user lookup, department hierarchy, subordinates, managers, and org-structure reports.
 
-## Core Methods
+## Users
 
-Users:
+- `user.current` — current webhook user (always start here to get own ID)
+- `user.get` — get users by filter (supports `UF_DEPARTMENT`, `ACTIVE`, etc.)
+- `user.search` — fast fuzzy search by name, position, department
+- `profile` — basic info about current user (no scope required)
 
-- `user.current`
-- `user.get`
-- `user.search`
+## Departments
 
-Departments:
+- `department.get` — list departments (supports `PARENT`, `UF_HEAD`, `NAME` filters)
+- `department.add` / `department.update` / `department.delete`
+- `department.fields` — field schema
 
-- `department.get`
-- `department.add`
-- `department.update`
-- `department.delete`
-- `department.fields`
+Key fields in `department.get`:
 
-Messenger-side org helpers:
+- `ID` — department ID
+- `NAME` — department name
+- `PARENT` — parent department ID (use to build tree)
+- `UF_HEAD` — user ID of department head
+- `SORT` — sort order
 
-- `im.department.get`
-- `im.department.employees.get`
-- `im.department.managers.get`
-- `im.department.colleagues.list`
-- `im.search.user.list`
-- `im.search.department.list`
+## Org Structure Helpers (Messenger API)
 
-UI-only helper surfaced by search:
+- `im.department.employees.get` — employees of given department(s)
+- `im.department.managers.get` — managers/heads of given department(s)
+- `im.department.colleagues.list` — colleagues of current user (for managers: returns subordinates)
+- `im.department.get` — department data by ID
+- `im.search.user.list` — search users by name/position
+- `im.search.department.list` — search departments by name
+- `im.user.get` — get user data by ID
 
-- `BX24.selectUsers`
+`BX24.selectUsers` is frontend-only, not usable from REST.
 
-Treat `BX24.selectUsers` as a frontend helper, not a server-side agent method.
+## Common Use Cases
+
+### Get current user identity
+
+```bash
+python3 scripts/bitrix24_call.py user.current --json
+```
+
+### Build department tree
+
+Get all departments, use `PARENT` field to reconstruct hierarchy:
+
+```bash
+python3 scripts/bitrix24_call.py department.get --json
+```
+
+### Get subdepartments of a specific department
+
+```bash
+python3 scripts/bitrix24_call.py department.get \
+  --param 'PARENT=1' \
+  --json
+```
+
+### Get department head
+
+```bash
+python3 scripts/bitrix24_call.py im.department.managers.get \
+  --param 'ID[]=5' \
+  --param 'USER_DATA=Y' \
+  --json
+```
+
+### Get all employees of a department
+
+```bash
+python3 scripts/bitrix24_call.py im.department.employees.get \
+  --param 'ID[]=5' \
+  --json
+```
+
+### Get subordinates (for a manager)
+
+`im.department.colleagues.list` returns subordinates when called by a manager:
+
+```bash
+python3 scripts/bitrix24_call.py im.department.colleagues.list --json
+```
+
+### Get users by department
+
+```bash
+python3 scripts/bitrix24_call.py user.get \
+  --param 'filter[UF_DEPARTMENT]=5' \
+  --param 'filter[ACTIVE]=true' \
+  --json
+```
+
+### Search users by name
+
+```bash
+python3 scripts/bitrix24_call.py user.search \
+  --param 'FILTER[NAME]=Ivan' \
+  --json
+```
+
+## Building Reports by Department
+
+To build a report by department with subordinates:
+
+1. Get all departments: `department.get`
+2. For each department, get employees: `im.department.employees.get` or `user.get` with `filter[UF_DEPARTMENT]`
+3. For each department, get head: `im.department.managers.get`
+4. Cross-reference with task/timeman data as needed
 
 ## Working Rules
 
-- Use `user.current` to verify which identity the webhook or token is acting as.
-- Use `user.search` for fast fuzzy person lookups.
-- Use `department.get` for structure data and tree traversal.
-- Use `im.department.*` when the task is clearly messenger or org-navigation oriented.
-- Verify field names like `UF_DEPARTMENT` with live docs if the portal has custom behavior.
-
-## Minimal Examples
-
-Get the current identity:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}user.current.json"
-```
-
-Search users:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}user.search.json" \
-  -d 'FILTER[NAME]=Ivan'
-```
-
-List departments:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}department.get.json"
-```
-
-Get employees of a department:
-
-```bash
-curl -s "${BITRIX24_WEBHOOK_URL}im.department.employees.get.json" \
-  -d 'ID[]=5'
-```
+- Always start with `user.current` to know the webhook user's ID.
+- Use `department.get` with `PARENT` filter to navigate the tree.
+- `UF_HEAD` in department data gives the head's user ID directly.
+- Pagination: page size 50, use `START=0`, `START=50`, etc.
 
 ## Good MCP Queries
 
-- `user department structure intranet`
-- `im department employees managers`
-- `user search`
+- `user current get search`
+- `department get fields`
+- `im department employees managers colleagues`
+- `im search user department`
