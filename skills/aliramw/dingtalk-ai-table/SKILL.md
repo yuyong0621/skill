@@ -1,269 +1,286 @@
 ---
 name: dingtalk-ai-table
-description: 钉钉 AI 表格（多维表）操作技能。使用 mcporter CLI 连接钉钉 MCP server 执行表格创建、数据表管理、字段操作、记录增删改查。需要配置 DINGTALK_MCP_URL 凭证。使用场景：创建 AI 表格、管理数据表结构、批量导入导出数据、自动化库存/项目管理等表格操作任务。
-version: 0.4.0
+description: 钉钉 AI 表格（多维表）操作技能。使用 mcporter CLI 连接钉钉官方新版 AI 表格 MCP server，基于 baseId / tableId / fieldId / recordId 体系执行 Base、Table、Field、Record 的查询与增删改。适用于创建 AI 表格、搜索表格、读取表结构、批量增删改记录、批量建字段、更新字段配置、按模板建表等场景。需要配置 DINGTALK_MCP_URL 或直接使用 Streamable HTTP URL。
+version: 0.5.2
 metadata:
   openclaw:
     requires:
       env:
         - DINGTALK_MCP_URL
+        - OPENCLAW_WORKSPACE
       bins:
         - mcporter
+        - python3
     primaryEnv: DINGTALK_MCP_URL
     homepage: https://github.com/aliramw/dingtalk-ai-table
 ---
 
-# 钉钉 AI 表格操作
+# 钉钉 AI 表格操作（新版 MCP）
 
-通过 MCP 协议连接钉钉 AI 表格 API，执行表格和数据操作。
+按 **新版 MCP schema** 工作：
+- Base：`baseId`
+- Table：`tableId`
+- Field：`fieldId`
+- Record：`recordId`
 
-## ⚠️ 安全须知
+不要再用旧版 `dentryUuid / sheetIdOrName / fieldIdOrName`。
 
-**安装前请阅读：**
+## 版本守门规则（每个 MCP Server 地址只强制检查一次）
 
-1. **本技能需要外部 CLI 工具** - 需安装 `mcporter` (npm/bun 全局安装)
-2. **需要配置认证凭证** - Streamable HTTP URL 包含访问令牌，请妥善保管
-3. **脚本审查建议** - `scripts/` 目录包含 Python 辅助脚本，建议先审查再运行
-4. **测试环境优先** - 首次使用建议在测试表格中验证，确认无误后再操作生产数据
+在真正开始任何 AI 表格操作前，必须先检查当前 `mcporter` 注册的 `dingtalk-ai-table` MCP server 实际返回的 tools schema。**但这个检查不该每次都重复做；同一个 MCP Server 地址只需要强制检查一次。**
 
-### 🔒 安全加固措施（v0.3.4+）
+### 一次性检查策略
 
-脚本已实施以下安全保护：
+1. 先读取当前 `mcporter` 里 `dingtalk-ai-table` 对应的 MCP Server 地址。
+2. 用这个地址生成一个本地检查标记（例如基于完整 URL 或其 hash）。
+3. 在工作区保存检查结果，例如放到：
 
-| 保护措施 | 说明 |
-|----------|------|
-| **路径沙箱** | `resolve_safe_path()` 防止目录遍历攻击，限制文件访问在 `OPENCLAW_WORKSPACE` 内 |
-| **dentryUuid 验证** | 验证 API 返回的 dentryUuid 格式，兼容平台返回的合法 ID，防止空值和明显异常输入 |
-| **文件扩展名白名单** | 仅允许 `.json` / `.csv` 文件 |
-| **文件大小限制** | JSON 最大 10MB，CSV 最大 50MB，防止 DoS |
-| **字段类型白名单** | 仅允许预定义的字段类型 |
-| **命令超时** | mcporter 命令超时限制（60-120 秒） |
-| **输入清理** | 自动去除空白、验证空值 |
+```text
+~/.openclaw/workspace/.cache/dingtalk-ai-table/
+```
 
-**配置建议：**
+建议文件名模式：
+
+```text
+schema-check-<url-hash>.json
+```
+
+4. 如果当前地址对应的检查标记已经存在，并且结果是“已确认新版 schema”，则**跳过重复检查**，直接继续后续 AI 表格操作。
+5. 只有在以下情况才重新强制检查：
+   - 第一次运行，没有检查标记
+   - `mcporter` 里的 MCP Server 地址变了
+   - 之前检查结果是旧版 schema / 检查失败
+   - 用户明确要求重新验证
+
+### 强制检查时执行
+
 ```bash
-# 设置工作目录限制（推荐）
-export OPENCLAW_WORKSPACE=/Users/marila/.openclaw/workspace
+mcporter list dingtalk-ai-table --schema
+```
+
+### 判断标准
+
+如果返回的 tools 仍然是旧版这一套，例如出现：
+- `get_root_node_of_my_document`
+- `create_base_app`
+- `list_base_tables`
+- `add_base_record`
+- `search_base_record`
+- `list_base_field`
+
+或者整体仍然基于：
+- `dentryUuid`
+- `sheetIdOrName`
+- `fieldIdOrName`
+
+那么说明：**虽然 skill 文件已经是新版，但 mcporter 里注册的 MCP server 地址还是旧的，不能继续操作。**
+
+### 遇到旧版 schema 时的强制提示
+
+此时必须明确提示用户：
+
+1. 打开这个页面：
+   `https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail`
+2. 点击右侧 **「获取 MCP Server 配置」** 按钮
+3. 复制新的 MCP Server 地址
+4. 用新的地址替换 `mcporter` 里已经注册的 `dingtalk-ai-table` 地址
+5. 替换完成后，再重新执行：
+
+```bash
+mcporter list dingtalk-ai-table --schema
+```
+
+只有当返回的 tools 已经变成新版 schema，例如出现：
+- `list_bases`
+- `get_base`
+- `get_tables`
+- `get_fields`
+- `query_records`
+- `create_records`
+- `update_records`
+- `delete_records`
+
+才允许继续真正的 AI 表格操作。
+
+### 通过检查后的处理
+
+一旦确认当前 MCP Server 地址返回的是新版 schema，就把结果写入本地检查标记。后续只要 `mcporter` 里的 `dingtalk-ai-table` 地址没变，就不要再重复做这一步守门检查。
+
+### 用户提示文案（可直接复用）
+
+```text
+当前 mcporter 里注册的 dingtalk-ai-table 还是旧版 MCP schema，暂时不能按新版技能操作。
+请打开 https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail ，点击右侧“获取 MCP Server 配置”按钮，复制新的 MCP Server 地址，并替换 mcporter 里已注册的 dingtalk-ai-table 地址。替换后重新检查 schema，确认出现 list_bases / get_base / create_records 等新版 tools 后，再继续操作 AI 表格。
 ```
 
 ## 前置要求
 
 ### 安装 mcporter CLI
 
-本技能依赖 `mcporter` 工具。安装前请确认来源可信：
-
-- **官方仓库**: https://github.com/mcporter/mcporter (请验证)
-- **npm 包**: `npm install -g mcporter`
-
 ```bash
-# 使用 npm 安装
 npm install -g mcporter
-
-# 或使用 bun 安装
+# 或
 bun install -g mcporter
 ```
 
-验证安装：
+验证：
+
 ```bash
 mcporter --version
 ```
 
-> **注意**: 全局安装的 CLI 工具具有用户级执行权限，请确保从可信来源安装。
-
 ### 配置 MCP Server
 
-**获取 Streamable HTTP URL：**
+在钉钉 MCP 广场 https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail 获取新版钉钉 AI 表格 MCP 的 `Streamable HTTP URL`。
 
-1. 访问钉钉 MCP 广场：https://mcp.dingtalk.com/#/detail?mcpId=1060&detailType=marketMcpDetail
-2. 在页面**右侧**点击“获取 MCP Server 配置”按钮，然后找到 `Streamable HTTP URL`
-3. 复制该 URL 并用于下方配置
-
-**方式一：使用 mcporter config（推荐）**
+方式一：直接配置到 mcporter
 
 ```bash
-# 添加钉钉 AI 表格服务器配置（持久化存储）
 mcporter config add dingtalk-ai-table --url "<Streamable_HTTP_URL>"
 ```
 
-**方式二：使用环境变量**
+方式二：使用环境变量
 
 ```bash
-# 临时设置（当前终端会话有效）
 export DINGTALK_MCP_URL="<Streamable_HTTP_URL>"
 ```
 
-将 `<Streamable_HTTP_URL>` 替换为实际获取的完整 URL。
+> 这个 URL 带访问令牌，等同密码，不要泄露。
 
-> **⚠️ 凭证安全**: Streamable HTTP URL 包含访问令牌，等同于密码：
-> - 不要提交到版本控制系统
-> - 不要分享给他人
-> - 推荐使用 `mcporter config` 持久化存储，避免在命令历史中暴露
+### 工作区沙箱
 
-### 基本命令模式
-
-所有操作通过 `mcporter call dingtalk-ai-table <tool>` 执行：
+脚本读取本地文件时，会优先使用 `OPENCLAW_WORKSPACE` 作为允许根目录：
 
 ```bash
-# 获取文档根节点
-mcporter call dingtalk-ai-table get_root_node_of_my_document --output json
-
-# 创建 AI 表格
-mcporter call dingtalk-ai-table create_base_app filename="表格名" target="<rootDentryUuid>" --output json
-
-# 搜索可访问的表格
-mcporter call dingtalk-ai-table search_accessible_ai_tables keyword="关键词" --output json
+export OPENCLAW_WORKSPACE="$HOME/.openclaw/workspace"
 ```
 
-## 核心工作流
+未设置时默认使用当前工作目录。
 
-### 创建表格并初始化
+## 核心工具集
+
+### Base 层
+- `list_bases`
+- `search_bases`
+- `get_base`
+- `create_base`
+- `update_base`
+- `delete_base`
+- `search_templates`
+
+### Table 层
+- `get_tables`
+- `create_table`
+- `update_table`
+- `delete_table`
+
+### Field 层
+- `get_fields`
+- `create_fields`
+- `update_field`
+- `delete_field`
+
+### Record 层
+- `query_records`
+- `create_records`
+- `update_records`
+- `delete_records`
+
+## 推荐工作流
+
+### 1. 先找 Base
 
 ```bash
-# 1. 获取根节点
-ROOT_UUID=$(mcporter call dingtalk-ai-table get_root_node_of_my_document --output json | jq -r '.rootDentryUuid')
-
-# 2. 创建表格
-mcporter call dingtalk-ai-table create_base_app filename="我的表格" target="$ROOT_UUID" --output json
-
-# 3. 记录返回的 dentryUuid 用于后续操作
+mcporter call dingtalk-ai-table list_bases limit=10 --output json
+mcporter call dingtalk-ai-table search_bases query="销售" --output json
 ```
 
-### 数据表操作
+### 2. 再拿 Table 目录
 
 ```bash
-# 创建数据表（可带初始字段）
-mcporter call dingtalk-ai-table add_base_table \
-  --args '{"dentryUuid":"<表格 UUID>","name":"新数据表","fields":[{"name":"字段 1","type":"text"},{"name":"字段 2","type":"number"}]}' \
-  --output json
-
-# 列出所有数据表
-mcporter call dingtalk-ai-table list_base_tables dentryUuid="<表格 UUID>" --output json
-
-# 重命名数据表
-mcporter call dingtalk-ai-table update_base_tables \
-  --args '{"dentryUuid":"<UUID>","oldSheetIdOrName":"原表名","newName":"新表名"}' \
-  --output json
-
-# 删除数据表
-mcporter call dingtalk-ai-table delete_base_table \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名"}' \
-  --output json
+mcporter call dingtalk-ai-table get_base baseId="base_xxx" --output json
 ```
 
-### 字段操作
+### 3. 再展开表结构
 
 ```bash
-# 查看字段列表
-mcporter call dingtalk-ai-table list_base_field \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名"}' \
-  --output json
-
-# 添加字段（支持类型：text, number, singleSelect, multipleSelect, date, user, attachment）
-mcporter call dingtalk-ai-table add_base_field \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名","addField":{"name":"字段名","type":"text"}}' \
-  --output json
-
-# 删除字段
-mcporter call dingtalk-ai-table delete_base_field \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名","fieldIdOrName":"字段名"}' \
+mcporter call dingtalk-ai-table get_tables \
+  --args '{"baseId":"base_xxx","tableIds":["tbl_xxx"]}' \
   --output json
 ```
 
-### 记录操作
+### 4. 字段复杂时读完整配置
 
 ```bash
-# 查询记录
-mcporter call dingtalk-ai-table search_base_record \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名"}' \
-  --output json
-
-# 添加记录
-mcporter call dingtalk-ai-table add_base_record \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名","records":[{"fields":{"字段 1":"值 1","字段 2":100}}]}' \
-  --output json
-
-# 更新记录
-mcporter call dingtalk-ai-table update_records \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名","records":[{"id":"记录 ID","fields":{"字段":"新值"}}]}' \
-  --output json
-
-# 删除记录
-mcporter call dingtalk-ai-table delete_base_record \
-  --args '{"dentryUuid":"<UUID>","sheetIdOrName":"表名","recordIds":["记录 ID1","记录 ID2"]}' \
+mcporter call dingtalk-ai-table get_fields \
+  --args '{"baseId":"base_xxx","tableId":"tbl_xxx","fieldIds":["fld_xxx"]}' \
   --output json
 ```
 
-## 支持的字段类型
-
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| `text` | 文本 | `{"name":"姓名","type":"text"}` |
-| `number` | 数字 | `{"name":"数量","type":"number"}` |
-| `singleSelect` | 单选 | `{"name":"状态","type":"singleSelect"}` |
-| `multipleSelect` | 多选 | `{"name":"标签","type":"multipleSelect"}` |
-| `date` | 日期 | `{"name":"日期","type":"date"}` |
-| `user` | 人员 | `{"name":"负责人","type":"user"}` |
-| `attachment` | 附件 | `{"name":"文件","type":"attachment"}` |
-
-## 使用脚本
-
-对于批量操作，使用 `scripts/` 目录中的工具脚本：
+### 5. 再查 / 写记录
 
 ```bash
-# 批量添加字段
-python scripts/bulk_add_fields.py <dentryUuid> <sheetName> fields.json
+mcporter call dingtalk-ai-table query_records \
+  --args '{"baseId":"base_xxx","tableId":"tbl_xxx","limit":20}' \
+  --output json
 
-# 批量导入记录（支持 CSV 和 JSON）
-python scripts/import_records.py <dentryUuid> <sheetName> data.csv
-python scripts/import_records.py <dentryUuid> <sheetName> data.json [batch_size]
+mcporter call dingtalk-ai-table create_records \
+  --args '{"baseId":"base_xxx","tableId":"tbl_xxx","records":[{"cells":{"fld_name":"张三"}}]}' \
+  --output json
 ```
 
-> **🔒 脚本安全特性**:
-> - ✅ 路径沙箱：防止目录遍历攻击（`../etc/passwd` 等）
-> - ✅ UUID 格式验证：严格校验输入格式
-> - ✅ 文件扩展名白名单：仅允许 `.json` / `.csv`
-> - ✅ 文件大小限制：JSON 10MB / CSV 50MB
-> - ✅ 字段类型白名单：防止无效类型注入
-> - ✅ 命令超时保护：60-120 秒自动终止
->
-> **测试验证**: 运行 `python3 tests/test_security.py` 执行 25 项安全测试
->
-> **⚠️ 注意事项**: 
-> - 脚本仅调用 `mcporter` 命令和处理本地文件，无网络请求
-> - 首次运行前建议审查脚本源码
-> - 处理敏感数据时请在受控环境中执行
+## 脚本
 
-## 参考文档
-
-- **API 详情**: 见 [references/api-reference.md](references/api-reference.md)
-- **错误码说明**: 见 [references/error-codes.md](references/error-codes.md)
-
-## 根节点配置
-
-创建 AI 表格需要根节点 `dentryUuid` 作为 `target` 参数。**根节点缓存文件必须放在工作区内**，推荐使用 `$OPENCLAW_WORKSPACE/TABLE.md`（例如 `~/.openclaw/workspace/TABLE.md`），不要使用 `~/workspace/TABLE.md` 这类工作区外路径。
+### 批量新增字段
 
 ```bash
-# 推荐：先确保工作区路径
-export OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}
-
-# 读取根节点（已缓存，无需每次调用 API）
-ROOT_UUID=$(grep 'rootDentryUuid' "$OPENCLAW_WORKSPACE/TABLE.md" | grep -o '`[^`]*`' | tr -d '`')
-
-# 创建新表格
-mcporter call dingtalk-ai-table create_base_app filename="表格名" target="$ROOT_UUID" --output json
+python3 scripts/bulk_add_fields.py <baseId> <tableId> fields.json
 ```
 
-如果 `TABLE.md` 不存在或需要更新，重新获取：
+`fields.json` 示例：
+
+```json
+[
+  {"fieldName":"任务名","type":"text"},
+  {"fieldName":"优先级","type":"singleSelect","config":{"options":[{"name":"高"},{"name":"中"},{"name":"低"}]}}
+]
+```
+
+兼容项：
+- `name` 会自动映射为 `fieldName`
+- `phone` 会自动映射为 `telephone`
+
+### 批量导入记录
+
 ```bash
-export OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}
-mcporter call dingtalk-ai-table get_root_node_of_my_document --output json
-# 将返回的 rootDentryUuid 写入 $OPENCLAW_WORKSPACE/TABLE.md
+python3 scripts/import_records.py <baseId> <tableId> data.csv
+python3 scripts/import_records.py <baseId> <tableId> data.json 50
 ```
 
-## 注意事项
+说明：
+- CSV 表头默认按 `fieldId` 解释
+- JSON 支持：
+  - `[{"cells": {...}}]`
+  - `[{"fld_xxx": "value"}]`
 
-1. **dentryUuid 识别**: 创建表格后返回多个 ID，使用 API 返回的 `uuid` / `rootDentryUuid` 等实际 `dentryUuid` 字段值；不要自行编造，也不要假设它一定是 UUID v4
-2. **表名匹配**: 默认创建的表名为"数据表"，操作前需确认实际表名
-3. **字段值格式**: 单选/多选字段返回对象格式 `{"name":"选项","id":"xxx"}`
-4. **日期格式**: 日期字段使用 Unix 时间戳（毫秒）或 `YYYY-MM-DD` 格式
-5. **批量操作**: 添加/删除记录支持批量，单次最多 1000 条
+## 安全规则
+
+- 文件路径受 `OPENCLAW_WORKSPACE` 沙箱限制
+- 仅允许读取工作区内 `.json` / `.csv` 文件
+- Base / Table / Field / Record ID 都做格式校验
+- 批量上限按 MCP server 实际限制控制：
+  - `create_fields`：最多 15
+  - `get_tables / get_fields`：最多 10
+  - `create_records / update_records / delete_records`：最多 100
+
+## 调试原则
+
+- 先 `get_base`，再 `get_tables`，必要时 `get_fields`
+- 不要猜 `fieldId`
+- 复杂参数一律用 `--args` JSON
+- `singleSelect / multipleSelect` 过滤时必须传 option ID，不是 option name
+
+## 参考
+
+- API 参考：`references/api-reference.md`
+- 错误排查：`references/error-codes.md`

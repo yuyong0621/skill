@@ -1,3 +1,75 @@
+## [0.5.2] - 2026-03-11
+
+### 技能流程优化
+
+- ✅ 新增“版本守门规则”：若 `mcporter` 注册的 `dingtalk-ai-table` 仍返回旧版 schema，必须先提示用户去新版 MCP 页面获取新的 Server 地址，再替换本地注册配置
+- ✅ 修正新版 MCP 获取页面链接为 `https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail`
+- ✅ 将守门逻辑优化为“同一个 MCP Server 地址只强制检查一次”，避免每次运行重复做迁移检查
+- ✅ 移除带真实业务场景的示例内容，保留通用、可复用的技能规则
+
+## [0.5.1] - 2026-03-11
+
+### 元数据修复
+
+- ✅ 补回 `SKILL.md` frontmatter 中的 `version` 与 `metadata.openclaw.requires` 声明
+- ✅ 明确声明必需环境变量：`DINGTALK_MCP_URL`、`OPENCLAW_WORKSPACE`
+- ✅ 明确声明必需二进制：`mcporter`、`python3`
+- ✅ `package.json` 同步补充 `requiredEnv` / `requiresBinaries` / credentials 信息，修复 ClawHub 审核指出的 metadata mismatch
+- ✅ README 同步补充依赖与环境声明
+
+## [0.5.0] - 2026-03-11
+
+### 重大升级
+
+**全面切换到钉钉 AI 表格新版 MCP schema：**
+- ✅ 从旧参数体系 `dentryUuid / sheetIdOrName / fieldIdOrName` 全面切换到新体系 `baseId / tableId / fieldId / recordId`
+- ✅ 以 2026-03-10 发布的新 MCP server 实际 methods 为准，重建技能文档与脚本
+- ✅ 覆盖新版全部 19 个 tools：Base / Table / Field / Record 全链路能力
+
+### 脚本重写
+
+**`scripts/bulk_add_fields.py`：**
+- ✅ 改为调用 `create_fields`
+- ✅ 输入参数改为 `<baseId> <tableId> fields.json`
+- ✅ 支持 `name -> fieldName` 自动兼容
+- ✅ 支持 `phone -> telephone` 自动兼容
+- ✅ 增加新字段类型与关联字段 config 校验
+
+**`scripts/import_records.py`：**
+- ✅ 改为调用 `create_records`
+- ✅ 输入参数改为 `<baseId> <tableId> data.(csv|json)`
+- ✅ 记录结构改为 `cells`
+- ✅ CSV 表头按 `fieldId` 解释
+- ✅ JSON 同时支持裸对象和 `{"cells": ...}` 两种格式
+- ✅ 支持布尔值 / 数字自动清洗
+
+### 文档重写
+
+- ✅ `SKILL.md` 按新版 schema 重写
+- ✅ `references/api-reference.md` 按真实 MCP schema 重写
+- ✅ `references/error-codes.md` 按新版排障逻辑重写
+- ✅ `README.md` 更新为新版说明
+- ✅ `package.json` 描述同步更新，版本提升到 `0.5.0`
+
+### 测试
+
+- ✅ `tests/test_security.py` 重写为新版 schema 测试
+- ✅ 自动化测试 **21 / 21 全通过**
+- ✅ Python 语法编译通过：`bulk_add_fields.py`、`import_records.py`、`test_security.py`
+
+## [0.4.1] - 2026-03-10
+
+### 文档更新
+
+**README / SKILL 同步补充：**
+- ✅ README 增加说明：本技能会随着钉钉 AI 表格 MCP 能力更新持续同步更新
+- ✅ SKILL 新增“能力更新”章节，明确当 MCP Server 方法与技能说明不一致时，应优先升级技能
+- ✅ SKILL 补充最新技能获取入口：ClawHub 页面与 GitHub 仓库链接
+
+**变更说明：**
+- 此版本仅文档更新，无脚本逻辑变更
+- 目标是降低因 MCP 能力演进导致的使用偏差
+
 ## [0.4.0] - 2026-03-07
 
 ### 修复
