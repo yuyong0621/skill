@@ -7,63 +7,80 @@ description: Use when managing tasks with the agkan CLI tool - creating, listing
 
 ## Overview
 
-`agkan` is a SQLite-based CLI task management tool, optimized for collaboration with AI agents.
+`agkan` is an SQLite-based CLI task management tool. It is optimized for collaboration with AI agents.
 
-**7 statuses:** `icebox` → `backlog` → `ready` → `in_progress` → `review` → `done` → `closed`
-
-## Setup (Required)
-
-If `agkan` is not installed, run the following first:
-
-```bash
-npm install -g agkan
-```
-
-Confirm the `agkan` command is available before proceeding.
+**7 Statuses:** `icebox` → `backlog` → `ready` → `in_progress` → `review` → `done` → `closed`
 
 ---
 
 ## Quick Reference
 
+### Agent Guide
+
+```bash
+# Display a comprehensive guide for AI agents (overview, commands, workflows)
+agkan agent-guide
+```
+
 ### Task Operations
 
 ```bash
-# Create a task
-agkan task add "title" "body"
-agkan task add "title" --status ready --author "agent"
-agkan task add "subtask" --parent 1
-agkan task add "title" --file ./spec.md  # Load body from file
+# Create task
+agkan task add "Title" "Body"
+agkan task add "Title" --status ready --author "agent"
+agkan task add "Subtask" --parent 1
+agkan task add "Title" --file ./spec.md  # Read body from file
+agkan task add "Title" --blocked-by 1,2  # Set tasks that block this task
+agkan task add "Title" --blocks 3,4      # Set tasks that this task blocks
+agkan task add "Title" --assignees "alice,bob"  # Set task assignees (comma-separated)
 
 # List tasks
 agkan task list                    # All tasks
 agkan task list --status in_progress
 agkan task list --tree             # Hierarchical view
 agkan task list --root-only        # Root tasks only
-agkan task list --tag 1,2          # Filter by tag
+agkan task list --tag 1,2          # Filter by tags
+agkan task list --dep-tree         # Dependency (blocking) tree view
+agkan task list --sort title       # Sort by field (id / title / status / created_at / updated_at), default: created_at
+agkan task list --order asc        # Sort order (asc / desc), default: desc
+agkan task list --assignees "alice,bob"  # Filter by assignees (comma-separated)
+agkan task list --all              # Include all statuses (including done and closed)
 
-# Show details
+# Get details
 agkan task get <id>
 
 # Search
 agkan task find "keyword"
 agkan task find "keyword" --all  # Include done/closed
 
-# Update
+# Update (positional argument form - backward compatible)
 agkan task update <id> status in_progress
+
+# Update (named option form - v1.6.0+)
+agkan task update <id> --status in_progress
+agkan task update <id> --title "New Title"
+agkan task update <id> --body "New body text"
+agkan task update <id> --author "agent"
+agkan task update <id> --assignees "alice,bob"
+agkan task update <id> --file ./spec.md  # Read body from file
+agkan task update <id> --status done --title "Updated Title"  # Multiple options
 
 # Count
 agkan task count
-agkan task count --status ready --quiet  # Output number only
+agkan task count --status ready --quiet  # Output numbers only
 
 # Update parent-child relationship
 agkan task update-parent <id> <parent_id>
 agkan task update-parent <id> null  # Remove parent
+
+# Delete task
+agkan task delete <id>
 ```
 
 ### Blocking Relationships
 
 ```bash
-# task1 blocks task2 (task2 cannot start until task1 is complete)
+# task1 blocks task2 (task2 cannot be started until task1 is complete)
 agkan task block add <blocker-id> <blocked-id>
 agkan task block remove <blocker-id> <blocked-id>
 agkan task block list <id>
@@ -72,15 +89,16 @@ agkan task block list <id>
 ### Tag Operations
 
 ```bash
-# Manage tags
-agkan task tag add "frontend"
-agkan task tag list
-agkan task tag delete <tag-id>
+# Tag management
+agkan tag add "frontend"
+agkan tag list
+agkan tag delete <tag-id-or-name>
+agkan tag rename <id-or-name> <new-name>
 
-# Attach tags to tasks
-agkan task tag attach <task-id> <tag-id>
-agkan task tag detach <task-id> <tag-id>
-agkan task tag show <task-id>
+# Tag tasks
+agkan tag attach <task-id> <tag-id-or-name>
+agkan tag detach <task-id> <tag-id-or-name>
+agkan tag show <task-id>
 ```
 
 ### Metadata Operations
@@ -99,7 +117,7 @@ agkan task meta list <task-id>
 agkan task meta delete <task-id> <key>
 ```
 
-#### Priority
+#### Priority (priority)
 
 Task priority is managed with the `priority` key:
 
@@ -109,10 +127,30 @@ agkan task meta set <task-id> priority <value>
 
 | Value | Meaning |
 |-----|------|
-| `critical` | Requires immediate action. Blocking issue |
-| `high` | Task to be tackled with priority |
+| `critical` | Requires immediate attention. Blocking issue |
+| `high` | Should be prioritized |
 | `medium` | Normal priority (default) |
-| `low` | Handle when time permits |
+| `low` | Work on if there is time |
+
+**When to set priority:** Priority is set during the planning phase (`agkan-planning-subtask`), at the same time the task is moved from `backlog` to `ready`. This is the responsibility of the planning skill. Skills that select tasks for execution (e.g., `agkan-run`) read this value to determine which task to work on next.
+
+---
+
+## Tag Priority
+
+When selecting or tagging tasks, use the following priority order:
+
+| Priority | Tag Name |
+|----------|----------|
+| 1 | bug |
+| 2 | security |
+| 3 | improvement |
+| 4 | test |
+| 5 | performance |
+| 6 | refactor |
+| 7 | docs |
+
+This is the canonical definition. All skills refer to this table.
 
 ---
 
@@ -124,7 +162,7 @@ Use the `--json` flag when machine processing is needed:
 agkan task list --json
 agkan task get 1 --json
 agkan task count --json
-agkan task tag list --json
+agkan tag list --json
 
 # Combine with jq
 agkan task list --status ready --json | jq '.tasks[].id'
@@ -146,8 +184,8 @@ agkan task list --status ready --json | jq '.tasks[].id'
   "tasks": [
     {
       "id": 1,
-      "title": "task title",
-      "body": "body | null",
+      "title": "Task Title",
+      "body": "Body | null",
       "author": "string | null",
       "status": "icebox | backlog | ready | in_progress | review | done | closed",
       "parent_id": "number | null",
@@ -168,8 +206,8 @@ agkan task list --status ready --json | jq '.tasks[].id'
   "success": true,
   "task": {
     "id": 1,
-    "title": "task title",
-    "body": "body | null",
+    "title": "Task Title",
+    "body": "Body | null",
     "author": "string | null",
     "status": "backlog | ready | in_progress | review | done | closed",
     "parent_id": "number | null",
@@ -206,14 +244,14 @@ agkan task list --status ready --json | jq '.tasks[].id'
 
 ```json
 {
-  "keyword": "search term",
+  "keyword": "Search keyword",
   "excludeDoneClosed": true,
   "totalCount": 3,
   "tasks": [
     {
       "id": 1,
-      "title": "task title",
-      "body": "body | null",
+      "title": "Task Title",
+      "body": "Body | null",
       "author": "string | null",
       "status": "ready",
       "parent_id": "number | null",
@@ -233,7 +271,7 @@ agkan task list --status ready --json | jq '.tasks[].id'
 {
   "task": {
     "id": 1,
-    "title": "task title",
+    "title": "Task Title",
     "status": "ready"
   },
   "blockedBy": [{ "id": 2, "title": "...", "status": "in_progress" }],
@@ -252,7 +290,7 @@ agkan task list --status ready --json | jq '.tasks[].id'
 }
 ```
 
-#### `agkan task tag list --json`
+#### `agkan tag list --json`
 
 ```json
 {
@@ -271,6 +309,31 @@ agkan task list --status ready --json | jq '.tasks[].id'
 ---
 
 ## Typical Workflows
+
+### Icebox Review (agkan-icebox)
+
+Icebox holds ideas and candidates that are not yet ready for planning. Review them periodically to decide whether to promote or close each one.
+
+```bash
+# Review icebox tasks
+agkan task list --status icebox
+
+# Promote to backlog when requirements become clear
+agkan task update <id> status backlog
+
+# Close if no longer needed
+agkan task update <id> status closed
+```
+
+**Icebox → Backlog conditions:**
+- Requirements or background are now clear enough to plan
+- External blockers have been resolved
+- Circumstances have changed and the task is now relevant
+
+**Icebox → Closed conditions:**
+- The need no longer exists
+- A duplicate already exists in a later stage
+- Superseded by another approach
 
 ### Receiving Tasks as an Agent
 
@@ -301,7 +364,7 @@ agkan task add "Testing" --parent 1 --status backlog
 agkan task block add 2 3
 agkan task block add 3 4
 
-# Review the full structure
+# View overall structure
 agkan task list --tree
 ```
 
@@ -315,4 +378,4 @@ Place `.agkan.yml` in the project root to customize the DB path:
 path: ./.agkan/data.db
 ```
 
-Or use an environment variable: `AGENT_KANBAN_DB_PATH=/custom/path/data.db`
+Or use environment variable: `AGENT_KANBAN_DB_PATH=/custom/path/data.db`
