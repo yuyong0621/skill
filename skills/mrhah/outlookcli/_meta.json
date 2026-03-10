@@ -3,9 +3,15 @@
   "slug": "outlookcli",
   "displayName": "Outlook and OneDrive Skill",
   "latest": {
-    "version": "1.0.0",
-    "publishedAt": 1772760271736,
-    "commit": "https://github.com/openclaw/skills/commit/9b5354a98edc6c3a9e6d9801c22a2390cd9e0bb9"
+    "version": "1.0.1",
+    "publishedAt": 1773060092085,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.0",
+      "publishedAt": 1772760271736,
+      "commit": "https://github.com/openclaw/skills/commit/9b5354a98edc6c3a9e6d9801c22a2390cd9e0bb9"
+    }
+  ]
 }
