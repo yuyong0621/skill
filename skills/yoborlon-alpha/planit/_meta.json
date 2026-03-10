@@ -3,9 +3,15 @@
   "slug": "planit",
   "displayName": "Planit",
   "latest": {
-    "version": "1.1.0",
-    "publishedAt": 1772988999132,
-    "commit": "https://github.com/openclaw/skills/commit/3a35af09cf6c3ce39c3156226f694673b91a4e5a"
+    "version": "2.0.7",
+    "publishedAt": 1773159838539,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.1.0",
+      "publishedAt": 1772988999132,
+      "commit": "https://github.com/openclaw/skills/commit/3a35af09cf6c3ce39c3156226f694673b91a4e5a"
+    }
+  ]
 }
