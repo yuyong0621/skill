@@ -1,6 +1,6 @@
 # Feishu Voice Sender
 
-飞书语音消息发送工具。文字转语音，支持多 TTS 供应商。
+飞书语音消息发送工具。基于 Edge TTS，一键发送语音到飞书。
 
 ## 安装
 
@@ -13,48 +13,28 @@ sudo apt-get install ffmpeg
 
 ```bash
 cd scripts
-python3 voice_sender.py "要发送的文字" [voice]
-```
-
-**示例**:
-```bash
-python3 voice_sender.py "你好老大，任务已完成" xiaoxiao
-python3 voice_sender.py "系统告警，请立即处理" yunyang
+python3 voice_sender.py "要发送的文字" [语音]
 ```
 
 ## 语音选项
 
 | 语音 | 性别 | 风格 |
 |:---|:---:|:---|
-| xiaoxiao | 女 | 温暖专业 ⭐推荐 |
-| yunyang | 男 | 专业可靠 ⭐推荐 |
+| **xiaoxiao** | 女 | 温暖专业 ⭐默认 |
+| **yunyang** | 男 | 专业可靠 |
 | yunxi | 男 | 活泼阳光 |
 | xiaoyi | 女 | 活泼卡通 |
 | yunjian | 男 | 新闻播报 |
+| xiaobei | 女 | 辽宁话 |
 
-## 架构
+## 示例
 
-```
-voice_sender.py → TTS Provider → FFmpeg → OPUS → 飞书
-```
-
-**支持供应商**:
-- `edge` (默认) - Microsoft Edge TTS，免费
-- `azure` (预留) - Azure Speech，需配置 KEY
-
-## 扩展供应商
-
-1. 在 `providers/` 创建新文件，继承 `TTSProvider`
-2. 实现 `synthesize()` 和 `get_voices()`
-3. 在 `providers/__init__.py` 注册
-
-## 配置
-
-环境变量:
 ```bash
-export FEISHU_VOICE_PROVIDER=edge  # 默认供应商
-export AZURE_SPEECH_KEY=xxx        # Azure 配置
-export AZURE_SPEECH_REGION=xxx
+# 默认语音（xiaoxiao 温暖女声）
+python3 voice_sender.py "你好老大，任务已完成"
+
+# 指定语音
+python3 voice_sender.py "系统告警，请立即处理" yunyang
 ```
 
 ## 依赖
@@ -62,4 +42,3 @@ export AZURE_SPEECH_REGION=xxx
 - Python 3.8+
 - edge-tts
 - FFmpeg
-- azure-cognitiveservices-speech (可选)

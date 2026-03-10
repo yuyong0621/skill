@@ -1,159 +1,167 @@
 #!/usr/bin/env python3
 """
-飞书语音发送器 - 主入口
-支持多 TTS 供应商，自动转换为飞书 OPUS 格式
+飞书语音发送器 - 极简版
+仅支持 Edge TTS，一键发送语音到飞书
+
+支持两种发送场景：
+1. 回复场景：不传 --target，自动发回当前群
+2. 主动发送：传入 --target 指定群ID
 """
 import subprocess
 import tempfile
 import os
-from typing import Optional, Tuple
-from providers import get_provider, list_available_providers
+import asyncio
+import sys
+import argparse
 
-class FeishuVoiceSender:
+# Edge TTS
+try:
+    import edge_tts
+except ImportError:
+    print("请先安装: pip install edge-tts")
+    sys.exit(1)
+
+# 默认语音
+DEFAULT_VOICE = "xiaoxiao"
+
+# Edge TTS 可用语音
+VOICES = {
+    "xiaoxiao": "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)",
+    "yunyang": "Microsoft Server Speech Text to Speech Voice (zh-CN, YunyangNeural)",
+    "yunxi": "Microsoft Server Speech Text to Speech Voice (zh-CN, YunxiNeural)",
+    "xiaoyi": "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoyiNeural)",
+    "yunjian": "Microsoft Server Speech Text to Speech Voice (zh-CN, YunJianNeural)",
+    "xiaobei": "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaobeiNeural)",
+}
+
+
+async def generate_audio(text: str, voice: str = DEFAULT_VOICE) -> bytes:
+    """使用 Edge TTS 生成音频"""
+    if voice not in VOICES:
+        print(f"⚠️ 未知语音 {voice}，使用默认 xiaoxiao")
+        voice = DEFAULT_VOICE
+    
+    tts_voice = VOICES[voice]
+    
+    communicate = edge_tts.Communicate(text, tts_voice)
+    audio_data = b""
+    
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
+    
+    return audio_data
+
+
+import uuid
+
+def text_to_opus(text: str, voice: str = DEFAULT_VOICE) -> str:
+    """文字转 OPUS 文件"""
+    # 1. 生成音频
+    audio_bytes = asyncio.run(generate_audio(text, voice))
+    
+    if not audio_bytes:
+        raise Exception("TTS 生成失败")
+    
+    # 2. 保存临时 MP3（加时间戳防止竞争）
+    timestamp = uuid.uuid4().hex[:8]
+    mp3_file = f"/tmp/feishu_voice_{timestamp}.mp3"
+    with open(mp3_file, "wb") as f:
+        f.write(audio_bytes)
+    
+    # 3. 转换为 OPUS
+    opus_file = f"/tmp/feishu_voice_{timestamp}.opus"
+    cmd = [
+        "ffmpeg", "-y", "-i", mp3_file,
+        "-acodec", "libopus",
+        "-ac", "1", "-ar", "16000",
+        opus_file
+    ]
+    result = subprocess.run(cmd, capture_output=True)
+    
+    os.remove(mp3_file)  # 清理 MP3
+    
+    if result.returncode != 0:
+        raise Exception(f"OPUS 转换失败: {result.stderr.decode()}")
+    
+    return opus_file
+
+
+def send_voice(text: str, voice: str = DEFAULT_VOICE, target: str = None) -> bool:
+    """发送语音到飞书
+    
+    Args:
+        text: 要转语音的文字
+        voice: 语音音色
+        target: 目标群ID（可选）
+               - 不传/None: 使用当前群ID（从环境变量或默认值）
+               - 传值: 主动发送到这个群
     """
-    飞书语音发送器
+    # 如果没传 target，尝试从环境变量获取当前群ID
+    # 否则使用当前群作为默认值（回复场景）
+    if not target:
+        import uuid as uuid_module
+        target = os.environ.get("FEISHU_CHAT_ID") or os.environ.get("OC_CHAT_ID")
+        print(f"📤 未指定目标，使用当前群: {target}")
     
-    支持多 TTS 供应商：
-    - edge: Microsoft Edge TTS (免费，默认)
-    - azure: Azure Speech Service (需要订阅)
-    """
+    print(f"📝 文字: {text[:50]}{'...' if len(text) > 50 else ''}")
+    print(f"🎤 语音: {voice}")
+    print(f"📤 发送到群: {target}")
     
-    def __init__(self, provider: str = "edge"):
-        """
-        初始化发送器
+    try:
+        opus_file = text_to_opus(text, voice)
+        print(f"✅ 语音生成: {opus_file}")
         
-        Args:
-            provider: TTS 供应商名称 (edge, azure, ...)
-        """
-        self.provider_name = provider
-        self.provider = get_provider(provider)
-        print(f"🎙️ 使用 TTS 供应商: {provider}")
-    
-    def text_to_opus(self, text: str, voice: str = None) -> Tuple[Optional[str], Optional[int]]:
-        """
-        将文字转换为 OPUS 语音文件（飞书格式）
+        # 复制到允许的目录（加时间戳防止竞争）
+        import shutil
+        timestamp = uuid.uuid4().hex[:8]
+        outbound_dir = os.path.expanduser("~/.openclaw/media/outbound")
+        os.makedirs(outbound_dir, exist_ok=True)
+        target_file = os.path.join(outbound_dir, f"feishu_voice_{timestamp}.opus")
+        shutil.copy(opus_file, target_file)
         
-        Args:
-            text: 要转换的文字
-            voice: 语音类型（供应商特定）
-            
-        Returns:
-            (opus文件路径, 时长秒数) 或 (None, None) 失败
-        """
-        # 1. 使用 TTS 供应商生成音频
-        audio_bytes, duration = self.provider.synthesize(text, voice)
+        # 构建发送命令
+        cmd = ["openclaw", "message", "send", "--channel", "feishu"]
         
-        if not audio_bytes:
-            return None, None
+        # 只有传入 target 时才加 --target 参数
+        # 不传 = 回复场景，OpenClaw 自动发回当前群
+        if target:
+            cmd.extend(["--target", target])
         
-        # 2. 如果是 MP3，转换为 OPUS
-        opus_file = "/tmp/feishu_voice_sender.opus"
-        
-        # 先保存为临时 MP3
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-            mp3_file = f.name
-            f.write(audio_bytes)
-        
-        try:
-            # 转换为 OPUS（飞书要求格式）
-            cmd = [
-                "ffmpeg", "-y", "-i", mp3_file,
-                "-acodec", "libopus",
-                "-ac", "1",      # 单声道
-                "-ar", "16000",  # 16kHz
-                opus_file
-            ]
-            result = subprocess.run(cmd, capture_output=True)
-            
-            if result.returncode != 0:
-                print(f"❌ OPUS 转换失败")
-                return None, None
-            
-            return opus_file, duration or self._estimate_duration(text)
-            
-        finally:
-            if os.path.exists(mp3_file):
-                os.remove(mp3_file)
-    
-    def _estimate_duration(self, text: str) -> int:
-        """估算语音时长（按每分钟150字）"""
-        return max(1, len(text) // 150 * 60)
-    
-    def send(self, text: str, voice: str = None) -> bool:
-        """
-        生成语音并发送到飞书
-        
-        Args:
-            text: 要发送的文字
-            voice: 语音类型
-            
-        Returns:
-            是否成功
-        """
-        print(f"📝 转换文字: {text[:50]}{'...' if len(text) > 50 else ''}")
-        
-        # 生成语音
-        opus_file, duration = self.text_to_opus(text, voice)
-        
-        if not opus_file:
-            print("❌ 语音生成失败")
-            return False
-        
-        print(f"✅ 语音生成成功！时长: {duration}秒")
-        print(f"📁 文件: {opus_file}")
-        
-        # 发送到飞书
-        return self._send_to_feishu(opus_file, duration)
-    
-    def _send_to_feishu(self, opus_file: str, duration: int) -> bool:
-        """发送 OPUS 文件到飞书"""
-        print(f"🚀 准备发送到飞书...")
-        
-        # 尝试使用 openclaw 命令发送
-        cmd = ["openclaw", "message", "send", "--media", opus_file]
+        cmd.extend(["--media", target_file, "--message", "语音消息"])
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode == 0:
-            print("✅ 语音消息发送成功！")
+            print("✅ 发送成功！")
             return True
         else:
-            print(f"⚠️ 自动发送失败: {result.stderr}")
-            print(f"💡 请手动上传文件: {opus_file}")
+            print(f"⚠️ 发送失败: {result.stderr}")
             return False
+            
+    except Exception as e:
+        print(f"❌ 错误: {e}")
+        return False
 
 
 def main():
-    """命令行入口"""
-    import sys
+    parser = argparse.ArgumentParser(description="飞书语音发送器 (Edge TTS)")
+    parser.add_argument("text", nargs="?", help="要转语音的文字")
+    parser.add_argument("voice", nargs="?", default=DEFAULT_VOICE, help="语音音色")
+    parser.add_argument("-t", "--target", default=None, 
+                        help="目标群ID（可选，不传则为回复模式）")
     
-    if len(sys.argv) < 2:
-        print("飞书语音发送器 (Feishu Voice Sender)")
-        print()
-        print("用法:")
-        print(f"  {sys.argv[0]} '要发送的文字' [voice] [provider]")
-        print()
-        print("示例:")
-        print(f"  {sys.argv[0]} '你好老大，任务已完成'")
-        print(f"  {sys.argv[0]} '系统告警' yunyang")
-        print(f"  {sys.argv[0]} '紧急通知' xiaoxiao azure")
-        print()
-        print("可用供应商:", ", ".join(list_available_providers()))
-        print()
-        print("Edge TTS 语音列表:")
-        print("  xiaoxiao - 温暖女声 (推荐)")
-        print("  yunyang  - 专业男声 (推荐)")
-        print("  xiaoyi   - 活泼女声")
-        print("  yunxi    - 活泼男声")
-        print("  yunjian  - 新闻男声")
+    args = parser.parse_args()
+    
+    if not args.text:
+        print("飞书语音发送器 (Edge TTS)")
+        print(f"用法: {sys.argv[0]} '文字' [语音] [-t 群ID]")
+        print("  - 不传 -t: 回复模式，自动发回当前群")
+        print("  - 传 -t: 主动发送到指定群")
+        print(f"语音: xiaoxiao(默认), yunyang, yunxi, xiaoyi, yunjian, xiaobei")
         sys.exit(1)
     
-    text = sys.argv[1]
-    voice = sys.argv[2] if len(sys.argv) > 2 else None
-    provider = sys.argv[3] if len(sys.argv) > 3 else "edge"
-    
-    sender = FeishuVoiceSender(provider=provider)
-    sender.send(text, voice)
+    send_voice(args.text, args.voice, args.target)
 
 
 if __name__ == "__main__":
