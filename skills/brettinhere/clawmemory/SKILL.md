@@ -160,7 +160,7 @@ Parse result:
 4. Write to `/tmp/chat-export.md`
 5. Run append-and-save with `--file /tmp/chat-export.md --label "<summary>"`
 
-### ⚠️ After ANY successful cli.js save — ALWAYS index it
+### ⚠️ After ANY successful cli.js save — ALWAYS index + cache locally
 
 Whenever `cli.js save` output contains a Merkle Root and Timestamp, **immediately** run:
 
@@ -168,20 +168,35 @@ Whenever `cli.js save` output contains a Merkle Root and Timestamp, **immediatel
 node -e "
 const fs = require('fs');
 const os = require('os');
-const INDEX = os.homedir() + '/.clawmemory/index.json';
+const INDEX    = os.homedir() + '/.clawmemory/index.json';
+const SLOT_DIR = os.homedir() + '/.clawmemory/slots';
+const slotName = '<slot name if used, else null>';
+const content  = \`<full content that was saved>\`;
+const merkleRoot = '<merkleRoot from output>';
+const timestamp  = <timestamp from output>;
+const label      = '<describe what was saved in plain Chinese>';
+
+// 1. Write local slot cache (enables offline retrieval)
+if (slotName) {
+  if (!fs.existsSync(SLOT_DIR)) fs.mkdirSync(SLOT_DIR, {recursive:true});
+  const slotFile = SLOT_DIR + '/' + slotName + '.md';
+  fs.writeFileSync(slotFile, content, 'utf8');
+}
+
+// 2. Index
 const db = fs.existsSync(INDEX) ? JSON.parse(fs.readFileSync(INDEX,'utf8')) : {};
 if (!db.files) db.files = [];
-db.files.push({
-  label: '<describe what was saved in plain Chinese>',
-  savedAt: new Date().toISOString(),
-  merkleRoot: '<merkleRoot from output>',
-  timestamp: <timestamp from output>,
-  slot: '<slot name if used, else null>'
-});
+db.files.push({ label, savedAt: new Date().toISOString(), merkleRoot, timestamp, slot: slotName });
+if (slotName) {
+  if (!db.slots) db.slots = {};
+  db.slots[slotName] = { merkleRoot, timestamp, savedAt: new Date().toISOString(), label, version: (db.slots[slotName]?.version||0)+1 };
+}
 fs.writeFileSync(INDEX, JSON.stringify(db, null, 2));
-console.log('indexed');
+console.log('indexed+cached');
 "
 ```
+
+**preferred path: always use `append-and-save.js --slot <name>` instead of `cli.js save` directly** — it handles local caching automatically.
 
 Tell user only: **"已存好，随时说「取回」就能找到，不需要记任何东西。"**
 **Never show merkleRoot or timestamp to user.**
@@ -190,25 +205,50 @@ Tell user only: **"已存好，随时说「取回」就能找到，不需要记�
 
 When user says "取回/找回/恢复" anything:
 
-1. Read index to find the entry:
+**Step 1 — Check local slot cache first (instant, no P2P needed):**
 ```bash
 node -e "
-const db = require(process.env.HOME + '/.clawmemory/index.json');
-// List all files with labels
-(db.files||[]).forEach((f,i) => console.log(i+': '+f.label+' ('+f.savedAt.slice(0,10)+')'));
-// List all slots
-Object.entries(db.slots||{}).forEach(([name,v]) => console.log('slot:'+name+' v'+v.version+' ('+v.savedAt.slice(0,10)+')'));
+const fs = require('fs');
+const os = require('os');
+const INDEX = os.homedir() + '/.clawmemory/index.json';
+const SLOT_DIR = os.homedir() + '/.clawmemory/slots/';
+
+if (!fs.existsSync(INDEX)) { console.log('NO_INDEX'); process.exit(0); }
+const db = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
+
+// List slots with local file status
+const slots = db.slots || {};
+Object.entries(slots).forEach(([name, v]) => {
+  const localPath = SLOT_DIR + name + '.md';
+  const hasLocal = fs.existsSync(localPath);
+  const localSize = hasLocal ? fs.statSync(localPath).size : 0;
+  console.log(JSON.stringify({ name, version: v.version, savedAt: v.savedAt, label: v.label, sizeKB: v.sizeKB, merkleRoot: v.merkleRoot, timestamp: v.timestamp, hasLocal, localPath, localSize }));
+});
+
+// List files
+(db.files||[]).forEach((f,i) => {
+  console.log(JSON.stringify({ idx: i, label: f.label, savedAt: f.savedAt, merkleRoot: f.merkleRoot, timestamp: f.timestamp, hasLocal: false }));
+});
 "
 ```
 
-2. Match by label/date/slot name to what user described
-3. Load silently:
+**Step 2 — Match what user described, then retrieve:**
+
+**Path A: local slot file exists (hasLocal=true)** — use this first, instant and works offline:
+```bash
+cat ~/.clawmemory/slots/<slotname>.md
+```
+
+**Path B: local file missing — try P2P network:**
 ```bash
 node ~/.clawmemory/memory-client/bin/cli.js load <merkleRoot> /tmp/retrieved.md --timestamp=<timestamp>
 cat /tmp/retrieved.md
 ```
 
-4. Display content to user — **never ask them to run commands or input hashes**
+**Path C: P2P also fails** — tell user:
+> "本地缓存文件不存在，P2P 网络暂时也无法取回。数据仍然安全存在链上，等矿工节点恢复后可以重试。如果你有这台机器的旧备份，文件在 `~/.clawmemory/slots/<slotname>.md`。"
+
+**Step 3** — Display content to user — **never ask them to run commands or input hashes**
 
 ### List all slots
 
