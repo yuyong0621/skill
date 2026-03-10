@@ -3,11 +3,16 @@
   "slug": "homeserver",
   "displayName": "Homeserver",
   "latest": {
-    "version": "2.0.2",
-    "publishedAt": 1772387894389,
-    "commit": "https://github.com/openclaw/skills/commit/345e4941fab44c54685e42d2388a2100198ffcfd"
+    "version": "2.1.0",
+    "publishedAt": 1772969344056,
+    "commit": null
   },
   "history": [
+    {
+      "version": "2.0.2",
+      "publishedAt": 1772387894389,
+      "commit": "https://github.com/openclaw/skills/commit/345e4941fab44c54685e42d2388a2100198ffcfd"
+    },
     {
       "version": "2.0.0",
       "publishedAt": 1772153745505,

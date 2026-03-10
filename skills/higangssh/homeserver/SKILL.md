@@ -1,27 +1,14 @@
 ---
 name: homeserver
-description: Homelab server management via homebutler CLI. Check system status (CPU/RAM/disk), manage Docker containers, Wake-on-LAN, scan open ports, discover network devices, monitor resource alerts, and manage multiple servers over SSH. Use when asked about server status, docker containers, wake machines, open ports, network devices, system alerts, or multi-server management.
-compatibility: Requires homebutler binary in PATH. Works with Claude Code, OpenClaw, Cursor, Gemini CLI, and any Agent Skills compatible tool.
-license: MIT
+description: Homelab server management via homebutler CLI. System status, Docker, WoL, port scanning, TUI dashboard, web dashboard, alerts, and multi-server SSH.
 metadata:
-  author: Higangssh
-  version: "2.0"
-  openclaw:
-    emoji: "🏠"
-    requires:
-      anyBins: ["homebutler"]
-    configPaths: ["homebutler.yaml", "~/.config/homebutler/config.yaml"]
-    permissions:
-      - "Read system metrics (CPU, memory, disk)"
-      - "List and manage Docker containers"
-      - "Send Wake-on-LAN packets on local network"
-      - "Scan open ports on local/remote servers"
-      - "ARP/ping scan on local LAN only"
-      - "SSH to configured remote servers (key-based auth)"
-      - "Deploy binaries to remote servers via SSH (requires user confirmation)"
-    credentials:
-      - "SSH keys (~/.ssh/id_ed25519 or ~/.ssh/id_rsa) for remote server access"
-      - "Server config (~/.config/homebutler/config.yaml) with host/user/auth details"
+  {
+    "openclaw": {
+      "emoji": "🏠",
+      "requires": { "anyBins": ["homebutler"] },
+      "configPaths": ["homebutler.yaml", "~/.config/homebutler/config.yaml"]
+    }
+  }
 ---
 
 # Homeserver Management
@@ -48,6 +35,12 @@ cd homebutler && make build && sudo mv homebutler /usr/local/bin/
 ```
 
 ## Commands
+
+### Setup Wizard
+```bash
+homebutler init                      # Interactive config setup
+```
+Creates a config file at `~/.config/homebutler/config.yaml` with guided prompts.
 
 ### System Status
 ```bash
@@ -91,6 +84,34 @@ homebutler network scan
 Discovers devices on the local LAN via ping sweep + ARP table. Returns: IP, MAC, hostname, status.
 Note: May take up to 30 seconds. Some devices may not appear if they don't respond to ping.
 
+### TUI Dashboard
+```bash
+homebutler watch                     # Live terminal dashboard for all servers
+```
+Real-time monitoring of all configured servers with auto-refresh. Shows CPU, memory, disk, docker containers in a terminal UI.
+
+### Web Dashboard
+```bash
+homebutler serve                     # Start web dashboard on port 8080
+homebutler serve --port 3000         # Custom port
+homebutler serve --demo              # Demo mode with fake data (no real system calls)
+```
+Browser-based dashboard at `http://localhost:8080`. Read-only view of all servers, docker containers, alerts.
+
+### SSH Host Key Trust
+```bash
+homebutler trust <server>            # Trust remote server's SSH host key
+homebutler trust <server> --reset    # Remove old key and re-trust
+```
+TOFU (Trust On First Use) model. Required before first SSH connection to a new server.
+
+### Upgrade
+```bash
+homebutler upgrade                   # Upgrade local + all remote servers
+homebutler upgrade --local           # Upgrade only local binary
+```
+Downloads latest release from GitHub and installs it. For remote servers, uses SSH to upgrade.
+
 ### Resource Alerts
 ```bash
 homebutler alerts                    # Local
@@ -108,33 +129,6 @@ homebutler deploy --all                                 # Deploy to all remote s
 Installs homebutler on remote servers via SSH. Auto-detects remote OS/architecture.
 Install path priority: `/usr/local/bin` → `sudo /usr/local/bin` → `~/.local/bin` (with PATH auto-registration in .profile/.bashrc/.zshrc).
 
-### Top Processes
-```bash
-homebutler processes                 # Local top 10 by CPU
-homebutler processes --server rpi    # Remote server
-homebutler processes --all           # All servers
-```
-Returns: PID, CPU%, memory%, process name
-
-### Web Dashboard
-```bash
-homebutler serve                     # Start on localhost:8080
-homebutler serve --port 9090         # Custom port
-homebutler serve --demo              # Demo mode with dummy data
-```
-Launches a web dashboard with real-time server monitoring. Cards: ServerOverview, SystemStatus, Docker, Processes, Alerts, Ports, WakeOnLAN. Server dropdown switches all cards to show selected server's data.
-
-### Interactive Setup
-```bash
-homebutler init                      # Setup wizard
-```
-Auto-detects local machine, walks through adding remote servers with SSH key discovery and connection testing.
-
-### SSH Trust
-```bash
-homebutler trust --server rpi        # Trust a remote server's host key (TOFU)
-```
-
 ### MCP Server
 ```bash
 homebutler mcp                       # Start MCP server (JSON-RPC over stdio)
@@ -144,8 +138,6 @@ Starts a built-in MCP (Model Context Protocol) server for use with Claude Deskto
 ### Version
 ```bash
 homebutler version
-homebutler -v
-homebutler --version
 ```
 
 ## Output Format
@@ -166,7 +158,7 @@ If no config found, sensible defaults are used.
 - `servers` — Server list with SSH connection details
 - `wake` — Named WOL targets with MAC + broadcast
 - `alerts.cpu/memory/disk` — Threshold percentages
-
+- `output` — Default output format
 
 ### Multi-Server Config Example
 ```yaml
