@@ -1,11 +1,17 @@
 {
   "owner": "caozeal",
   "slug": "webdav-backup",
-  "displayName": "Webdav Backup",
+  "displayName": "webdav-backup",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1772347893246,
-    "commit": "https://github.com/openclaw/skills/commit/bd490020bd99969e713f338407faedf2955f29c0"
+    "version": "1.2.2",
+    "publishedAt": 1773117794561,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1772347893246,
+      "commit": "https://github.com/openclaw/skills/commit/bd490020bd99969e713f338407faedf2955f29c0"
+    }
+  ]
 }

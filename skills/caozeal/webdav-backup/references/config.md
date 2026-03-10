@@ -11,7 +11,9 @@ export WEBDAV_PASSWORD="你的坚果云应用密码"
 ```
 
 **注意**: 必须使用"应用密码"，不是登录密码。
-在坚果云网页版 → 安全选项 → 添加应用密码
+在坚果云网页版 → 安全选项 → 添加应用密码。
+
+环境变量名统一使用 `WEBDAV_PASSWORD`。
 
 ### 2. Nextcloud
 
@@ -38,16 +40,31 @@ export WEBDAV_USERNAME="admin"
 export WEBDAV_PASSWORD="your-token"
 ```
 
-## 持久化配置
+## 本地备份目录
 
-将环境变量添加到 `~/.bashrc` 或 `~/.zshrc`：
+默认本地备份目录为：`~/openclaw/output`
+
+如需修改，可设置：
 
 ```bash
-echo 'export WEBDAV_URL="https://dav.jianguoyun.com/dav/"' >> ~/.bashrc
-echo 'export WEBDAV_USERNAME="your-email"' >> ~/.bashrc
-echo 'export WEBDAV_PASSWORD="your-password"' >> ~/.bashrc
-source ~/.bashrc
+export OPENCLAW_LOCAL_BACKUP_DIR="$HOME/openclaw/output"
 ```
+
+也可以写入 `~/.openclaw/openclaw.json` 的 `webdav-backup.env`。
+
+## 配置建议
+
+优先使用 `~/.openclaw/openclaw.json` 保存 WebDAV 配置，并确保文件权限受控。
+
+如果只是临时测试，可以只在当前 shell 会话中设置环境变量：
+
+```bash
+export WEBDAV_URL="https://dav.jianguoyun.com/dav/"
+export WEBDAV_USERNAME="your-email"
+export WEBDAV_PASSWORD="your-password"
+```
+
+不建议把密码明文长期写入 `~/.bashrc` 或 `~/.zshrc`。
 
 ## 测试连接
 
@@ -55,6 +72,46 @@ source ~/.bashrc
 # 测试 WebDAV 连接
 curl -u $WEBDAV_USERNAME:$WEBDAV_PASSWORD -X PROPFIND $WEBDAV_URL
 ```
+
+## 默认备份范围
+
+不传 `--source` 时，默认备份这些内容：
+
+- `~/.openclaw/workspace/`
+- `~/.openclaw/openclaw.json`
+- `~/.openclaw/cron/`
+- `~/.openclaw/workspace/config/`
+
+如果只想备份单独目录或文件，请显式传 `--source`。
+
+## 默认排除规则
+
+默认会排除版本库、缓存、临时目录和输出目录，例如：
+
+- `.git/`
+- `.ace-tool/`
+- `.clawhub/`
+- `__pycache__/`、`*.pyc`
+- `node_modules/`
+- `.cache/`
+- `tmp/`、`temp/`
+- `output/`、`outputs/`
+
+## 恢复说明
+
+- `--restore latest`：从本地默认备份目录恢复最新备份
+- `--restore /path/to/file.tar.gz`：恢复指定备份包
+- `--restore-dir DIR`：指定恢复目标目录
+- 默认不覆盖已存在文件；如需覆盖，加 `--force`
+
+恢复前建议先解到独立目录，再查看 `openclaw/backup-manifest.json`，确认内容无误后再决定是否局部回填或覆盖。
+
+### 恢复时的推荐判断顺序
+
+1. 先恢复到独立目录，而不是直接覆盖生产路径
+2. 先查看 `openclaw/backup-manifest.json`，确认备份实际包含内容
+3. 若只需部分恢复，优先从恢复目录中手动挑选目标文件/目录
+4. 只有确认目标路径和覆盖意图后，才使用 `--force`
 
 ## 备份策略建议
 
@@ -82,10 +139,14 @@ crontab -e
 - 确认 URL 路径正确
 
 ### 3. SSL 证书错误
-```bash
-# 临时忽略证书验证（不推荐用于生产）
-export PYTHONHTTPSVERIFY=0
-```
+
+不要通过关闭 TLS 校验来绕过证书问题。
+
+更安全的做法是：
+- 检查 WebDAV 服务端证书是否正确
+- 使用受信任 CA 签发的证书
+- 校正本机 CA / 系统时间 / 代理设置
+- 优先使用可信的 HTTPS WebDAV 端点
 
 ### 4. 备份文件太大
 - 排除大文件：`--exclude-pattern "*.mp4,*.zip"`
