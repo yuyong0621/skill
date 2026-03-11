@@ -1,13 +1,18 @@
 {
   "owner": "oswalpalash",
   "slug": "ontology",
-  "displayName": "Ontology",
+  "displayName": "ontology",
   "latest": {
-    "version": "0.1.2",
-    "publishedAt": 1770990793271,
-    "commit": "https://github.com/openclaw/skills/commit/371ad3ecaa27ac9e0ccdd76662c0da304839b763"
+    "version": "1.0.4",
+    "publishedAt": 1773249559725,
+    "commit": null
   },
   "history": [
+    {
+      "version": "0.1.2",
+      "publishedAt": 1770990793271,
+      "commit": "https://github.com/openclaw/skills/commit/371ad3ecaa27ac9e0ccdd76662c0da304839b763"
+    },
     {
       "version": "0.1.1",
       "publishedAt": 1770912052938,
