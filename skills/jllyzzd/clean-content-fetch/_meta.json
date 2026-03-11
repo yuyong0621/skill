@@ -3,11 +3,16 @@
   "slug": "clean-content-fetch",
   "displayName": "Clean Content Fetch",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1773017240472,
-    "commit": "https://github.com/openclaw/skills/commit/7503aaae8947e1ffd9486109597b1b7bc34dc696"
+    "version": "1.0.5",
+    "publishedAt": 1773034435983,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1773017240472,
+      "commit": "https://github.com/openclaw/skills/commit/7503aaae8947e1ffd9486109597b1b7bc34dc696"
+    },
     {
       "version": "1.0.0",
       "publishedAt": 1773002726081,
