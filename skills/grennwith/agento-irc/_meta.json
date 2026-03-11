@@ -1,0 +1,11 @@
+{
+  "owner": "grennwith",
+  "slug": "agento-irc",
+  "displayName": "Agento IRC",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1773087596001,
+    "commit": null
+  },
+  "history": []
+}
