@@ -1,0 +1,11 @@
+{
+  "owner": "sunxianzheng",
+  "slug": "stock-trader",
+  "displayName": "A股股票交易助手",
+  "latest": {
+    "version": "2.0.0",
+    "publishedAt": 1773134168264,
+    "commit": null
+  },
+  "history": []
+}
