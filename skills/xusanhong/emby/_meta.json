@@ -1,0 +1,11 @@
+{
+  "owner": "xusanhong",
+  "slug": "emby",
+  "displayName": "emby",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1773207053455,
+    "commit": null
+  },
+  "history": []
+}
