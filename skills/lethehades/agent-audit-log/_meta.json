@@ -1,0 +1,11 @@
+{
+  "owner": "lethehades",
+  "slug": "agent-audit-log",
+  "displayName": "Agent Audit Log",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1773151332816,
+    "commit": null
+  },
+  "history": []
+}
