@@ -1,0 +1,22 @@
+name: soul-weaver
+version: 1.0.1
+description: "Generate OpenClaw agent configuration files through authorized API access. Requires manual verification and official API key application."
+author: AI Soul Weaver Team
+license: MIT
+
+category: productivity
+tags:
+  - openclaw
+  - soul-weaver
+  - ai
+  - agent
+  - configuration
+
+permissions:
+  - network
+
+# Security configuration
+security:
+  requires_api_key: true
+  manual_verification_required: true
+  official_application_process: true
