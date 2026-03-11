@@ -3,9 +3,15 @@
   "slug": "mcp-finder",
   "displayName": "Mcp Finder",
   "latest": {
-    "version": "0.2.0",
-    "publishedAt": 1772838390984,
-    "commit": "https://github.com/openclaw/skills/commit/9b2a2a3c5f1b3d21a930b316f8b7300a44484fd0"
+    "version": "0.2.3",
+    "publishedAt": 1773199065229,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "0.2.0",
+      "publishedAt": 1772838390984,
+      "commit": "https://github.com/openclaw/skills/commit/9b2a2a3c5f1b3d21a930b316f8b7300a44484fd0"
+    }
+  ]
 }
