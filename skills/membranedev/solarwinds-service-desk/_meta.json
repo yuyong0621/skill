@@ -1,0 +1,11 @@
+{
+  "owner": "membranedev",
+  "slug": "solarwinds-service-desk",
+  "displayName": "Solarwinds Service Desk",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1773180139851,
+    "commit": null
+  },
+  "history": []
+}
