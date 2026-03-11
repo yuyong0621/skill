@@ -2,7 +2,7 @@
 
 > OpenClaw plugin that bridges locally installed AI CLIs (Codex, Gemini, Claude Code) as model providers — with slash commands for instant model switching, restore, health testing, and model listing.
 
-**Current version:** `0.2.20`
+**Current version:** `0.2.27`
 
 ---
 
@@ -263,6 +263,12 @@ Slash commands (requireAuth=false, gateway commands.allowFrom is the auth layer)
 **Cause:** Gateway injects large values into `process.env` at runtime. Spreading it into `spawn()` exceeds Linux's `ARG_MAX` (~2MB).
 **Fix:** `buildMinimalEnv()` — only passes `HOME`, `PATH`, `USER`, and auth keys.
 
+### Claude Code 401 / timeout on OAuth login (fixed in v0.2.21)
+**Symptom:** `/cli-test cli-claude/*` times out after 30s; logs show `401 Invalid authentication credentials`.
+**Cause:** `buildMinimalEnv()` did not forward `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` to the spawned `claude` subprocess. Claude Code authenticated via `claude.ai` OAuth (Claude Max plan) stores its tokens in the system keyring (Gnome Keyring / libsecret) and needs these env vars to access it.
+**Affects:** Only systems using `claude auth` OAuth login (Claude Max / Teams). API-key users (`ANTHROPIC_API_KEY`) are not affected.
+**Fix:** Added `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` to the forwarded env keys in `buildMinimalEnv()`.
+
 ### Gemini agentic mode / hangs (fixed in v0.2.4)
 **Symptom:** Gemini hangs, returns wrong answers, or says "directory does not exist".
 **Cause:** `@file` syntax (`gemini -p @/tmp/xxx.txt`) triggers agentic mode — Gemini scans the working directory for project context and treats prompts as task instructions.
@@ -280,6 +286,40 @@ npm test            # vitest run (45 tests)
 ---
 
 ## Changelog
+
+### v0.2.27
+- **feat:** Grok persistent Chromium profile (`~/.openclaw/grok-profile/`) — cookies survive gateway restarts
+- **feat:** `/grok-login` imports cookies from OpenClaw browser into persistent profile automatically
+- **fix:** `verifySession` reuses existing grok.com page instead of opening a new one (avoids Cloudflare 403)
+- **fix:** DOM-polling strategy instead of direct fetch API — bypasses `x-statsig-id` anti-bot check completely
+- **fix:** Lazy-connect: `connectGrokContext` callback auto-reconnects on first request after restart
+
+### v0.2.26
+- **feat:** Grok web-session bridge integrated into cli-bridge proxy — routes `web-grok/*` models through grok.com browser session (SuperGrok subscription, no API credits needed)
+- **feat:** `/grok-login` — opens Chromium for X.com OAuth login, saves session to `~/.openclaw/grok-session.json`
+- **feat:** `/grok-status` — check session validity
+- **feat:** `/grok-logout` — clear session
+- **fix:** Grok web-session plugin removed as separate plugin — consolidated into cli-bridge (fewer running processes, single proxy port)
+
+### v0.2.25
+- **feat:** Staged model switching — `/cli-*` now stages the switch instead of applying it immediately. Prevents silent session corruption when switching models mid-conversation.
+  - `/cli-sonnet` → stages switch, shows warning, does NOT apply
+  - `/cli-sonnet --now` → immediate switch (use only between sessions!)
+  - `/cli-apply` → apply staged switch after finishing current task
+  - `/cli-pending` → show staged switch (if any)
+  - `/cli-back` → restore previous model + clear staged switch
+- **fix:** Sleep-resilient OAuth token refresh — replaced single long `setTimeout` with `setInterval(10min)` polling. Token refresh no longer misses its window after system sleep/resume.
+- **fix:** Timer leak in `scheduleTokenRefresh()` — old interval now reliably cleared via `stopTokenRefresh()` before scheduling a new one.
+- **fix:** `stopTokenRefresh()` exported from `claude-auth.ts`; called automatically via `server.on("close")` when the proxy server closes.
+
+### v0.2.23
+- **feat:** Proactive OAuth token management (`src/claude-auth.ts`) — the proxy now reads `~/.claude/.credentials.json` at startup, schedules a refresh 30 minutes before expiry, and calls `ensureClaudeToken()` before every `claude` subprocess invocation. On 401 responses, automatically retries once after refreshing. Eliminates the need for manual re-login after token expiry in headless/systemd deployments.
+
+### v0.2.22
+- **fix:** `runClaude()` now detects expired/invalid OAuth tokens immediately (401 in stderr) and throws a clear actionable error instead of waiting for the 30s proxy timeout. Error message includes the exact re-login command.
+
+### v0.2.21
+- **fix:** `buildMinimalEnv()` now forwards `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` to Claude Code subprocesses — required for Gnome Keyring / libsecret access when Claude Code is authenticated via `claude.ai` OAuth (Claude Max). Without these, the spawned `claude` process cannot read its OAuth token from the system keyring, resulting in `401 Invalid authentication credentials` and a 30-second timeout on `/cli-test` and all `/cli-claude/*` requests.
 
 ### v0.2.20
 - **fix:** `formatPrompt` now defensively coerces `content` to string via `contentToString()` — prevents `[object Object]` reaching the CLI when WhatsApp group messages contain structured content objects instead of plain strings

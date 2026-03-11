@@ -14,6 +14,7 @@
 
 import { spawn } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
+import { ensureClaudeToken, refreshClaudeToken } from "./claude-auth.js";
 
 /** Max messages to include in the prompt sent to the CLI. */
 const MAX_MESSAGES = 20;
@@ -125,6 +126,9 @@ function buildMinimalEnv(): Record<string, string> {
     "XDG_CONFIG_HOME",
     "XDG_DATA_HOME",
     "XDG_CACHE_HOME",
+    // Required for Claude Code OAuth (Gnome Keyring / libsecret access)
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
   ]) {
     const v = pick(key);
     if (v) env[key] = v;
@@ -250,6 +254,10 @@ export async function runClaude(
   modelId: string,
   timeoutMs: number
 ): Promise<string> {
+  // Proactively refresh OAuth token if it's about to expire (< 5 min remaining).
+  // No-op for API-key users.
+  await ensureClaudeToken();
+
   const model = stripPrefix(modelId);
   const args = [
     "-p",
@@ -258,10 +266,29 @@ export async function runClaude(
     "--tools", "",
     "--model", model,
   ];
+
   const result = await runCli("claude", args, prompt, timeoutMs);
 
+  // On 401: attempt one token refresh + retry before giving up.
   if (result.exitCode !== 0 && result.stdout.length === 0) {
-    throw new Error(`claude exited ${result.exitCode}: ${result.stderr || "(no output)"}`);
+    const stderr = result.stderr || "(no output)";
+    if (stderr.includes("401") || stderr.includes("Invalid authentication credentials") || stderr.includes("authentication_error")) {
+      // Refresh and retry once
+      await refreshClaudeToken();
+      const retry = await runCli("claude", args, prompt, timeoutMs);
+      if (retry.exitCode !== 0 && retry.stdout.length === 0) {
+        const retryStderr = retry.stderr || "(no output)";
+        if (retryStderr.includes("401") || retryStderr.includes("authentication_error") || retryStderr.includes("Invalid authentication credentials")) {
+          throw new Error(
+            "Claude CLI OAuth token refresh failed. " +
+            "Re-login required: run `claude auth logout && claude auth login` in a terminal."
+          );
+        }
+        throw new Error(`claude exited ${retry.exitCode} (after token refresh): ${retryStderr}`);
+      }
+      return retry.stdout;
+    }
+    throw new Error(`claude exited ${result.exitCode}: ${stderr}`);
   }
 
   return result.stdout;

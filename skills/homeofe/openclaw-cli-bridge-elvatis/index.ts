@@ -48,6 +48,16 @@ import {
 } from "./src/codex-auth.js";
 import { startProxyServer } from "./src/proxy-server.js";
 import { patchOpencllawConfig } from "./src/config-patcher.js";
+import {
+  loadSession,
+  deleteSession,
+  isSessionExpiredByAge,
+  verifySession,
+  runInteractiveLogin,
+  createContextFromSession,
+  DEFAULT_SESSION_PATH,
+} from "./src/grok-session.js";
+import type { BrowserContext, Browser } from "playwright";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types derived from SDK (not re-exported by the package)
@@ -66,6 +76,95 @@ interface CliPluginConfig {
   proxyPort?: number;
   proxyApiKey?: string;
   proxyTimeoutMs?: number;
+  grokSessionPath?: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Grok web-session state (module-level, persists across commands)
+// ──────────────────────────────────────────────────────────────────────────────
+
+let grokBrowser: Browser | null = null;
+let grokContext: BrowserContext | null = null;
+
+// Persistent profile dir — survives gateway restarts, keeps cookies intact
+const GROK_PROFILE_DIR = join(homedir(), ".openclaw", "grok-profile");
+
+/**
+ * Launch (or reuse) a persistent headless Chromium context for grok.com.
+ * Uses launchPersistentContext so cookies survive gateway restarts.
+ * The profile lives at ~/.openclaw/grok-profile/
+ */
+async function getOrLaunchGrokContext(
+  log: (msg: string) => void
+): Promise<BrowserContext | null> {
+  // Already have a live context?
+  if (grokContext) {
+    try {
+      // Quick check: can we still enumerate pages?
+      grokContext.pages();
+      return grokContext;
+    } catch {
+      grokContext = null;
+    }
+  }
+
+  const { chromium } = await import("playwright");
+
+  // 1. Try connecting to the OpenClaw managed browser first (user may have grok.com open)
+  try {
+    const browser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 2000 });
+    grokBrowser = browser;
+    const ctx = browser.contexts()[0];
+    if (ctx) {
+      log("[cli-bridge:grok] connected to OpenClaw browser");
+      return ctx;
+    }
+  } catch {
+    // OpenClaw browser not available — fall through to persistent context
+  }
+
+  // 2. Launch our own persistent headless Chromium with saved profile
+  log("[cli-bridge:grok] launching persistent Chromium…");
+  try {
+    const ctx = await chromium.launchPersistentContext(GROK_PROFILE_DIR, {
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    grokContext = ctx;
+    log("[cli-bridge:grok] persistent context ready");
+    return ctx;
+  } catch (err) {
+    log(`[cli-bridge:grok] failed to launch browser: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+async function connectToOpenClawBrowser(
+  log: (msg: string) => void
+): Promise<BrowserContext | null> {
+  return getOrLaunchGrokContext(log);
+}
+
+async function tryRestoreGrokSession(
+  _sessionPath: string,
+  log: (msg: string) => void
+): Promise<boolean> {
+  try {
+    const ctx = await getOrLaunchGrokContext(log);
+    if (!ctx) return false;
+
+    const check = await verifySession(ctx, log);
+    if (!check.valid) {
+      log(`[cli-bridge:grok] session invalid: ${check.reason}`);
+      return false;
+    }
+    grokContext = ctx;
+    log("[cli-bridge:grok] session restored ✅");
+    return true;
+  } catch (err) {
+    log(`[cli-bridge:grok] session restore error: ${(err as Error).message}`);
+    return false;
+  }
 }
 
 const DEFAULT_PROXY_PORT = 31337;
@@ -201,14 +300,53 @@ const CLI_MODEL_COMMANDS = [
 const CLI_TEST_DEFAULT_MODEL = "cli-claude/claude-sonnet-4-6";
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Helper: switch global model, saving previous for /cli-back
+// Staged-switch state file
+// Stores a pending model switch that has not yet been applied.
+// Written by /cli-* (default), applied by /cli-apply or /cli-* --now.
+// Located at ~/.openclaw/cli-bridge-pending.json
 // ──────────────────────────────────────────────────────────────────────────────
-async function switchModel(
+const PENDING_FILE = join(homedir(), ".openclaw", "cli-bridge-pending.json");
+
+interface CliBridgePending {
+  model: string;
+  label: string;
+  requestedAt: string;
+}
+
+function readPending(): CliBridgePending | null {
+  try {
+    return JSON.parse(readFileSync(PENDING_FILE, "utf8")) as CliBridgePending;
+  } catch {
+    return null;
+  }
+}
+
+function writePending(pending: CliBridgePending): void {
+  try {
+    mkdirSync(join(homedir(), ".openclaw"), { recursive: true });
+    writeFileSync(PENDING_FILE, JSON.stringify(pending, null, 2) + "\n", "utf8");
+  } catch {
+    // non-fatal
+  }
+}
+
+function clearPending(): void {
+  try {
+    const { unlinkSync } = require("node:fs");
+    unlinkSync(PENDING_FILE);
+  } catch {
+    // non-fatal — file may not exist
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: immediately apply the model switch (no safety checks)
+// ──────────────────────────────────────────────────────────────────────────────
+async function applyModelSwitch(
   api: OpenClawPluginApi,
   model: string,
   label: string,
 ): Promise<PluginCommandResult> {
-  // Save current model BEFORE switching so /cli-back can restore it
   const current = readCurrentModel();
   if (current && current !== model) {
     writeState({ previousModel: current });
@@ -227,15 +365,66 @@ async function switchModel(
       return { text: `❌ Failed to switch to ${label}: ${err}` };
     }
 
+    clearPending();
     api.logger.info(`[cli-bridge] switched model → ${model}`);
     return {
-      text: `✅ Switched to **${label}**\n\`${model}\`\n\nUse \`/cli-back\` to restore previous model.`,
+      text:
+        `✅ Switched to **${label}**\n` +
+        `\`${model}\`\n\n` +
+        `Use \`/cli-back\` to restore previous model.`,
     };
   } catch (err) {
     const msg = (err as Error).message;
     api.logger.warn(`[cli-bridge] models set error: ${msg}`);
     return { text: `❌ Error switching model: ${msg}` };
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Helper: staged switch (default behavior)
+//
+// ⚠️  SAFETY: /cli-* mid-session bricht den aktiven Agenten.
+//
+// `openclaw models set` ist ein **sofortiger, globaler Switch**.
+// Der laufende Agent verliert seinen Kontext — Tool-Calls werden nicht
+// ausgeführt, Planfiles werden nicht geschrieben, keine Rückmeldung.
+//
+// Default: Switch wird nur gespeichert (nicht angewendet).
+// Mit --now: sofortiger Switch (nur zwischen Sessions verwenden!).
+// Mit /cli-apply: gespeicherten Switch anwenden (nach Session-Ende).
+// ──────────────────────────────────────────────────────────────────────────────
+async function switchModel(
+  api: OpenClawPluginApi,
+  model: string,
+  label: string,
+  forceNow: boolean,
+): Promise<PluginCommandResult> {
+  // --now: sofortiger Switch, volle Verantwortung beim User
+  if (forceNow) {
+    api.logger.warn(`[cli-bridge] --now switch to ${model} (immediate, session may break)`);
+    return applyModelSwitch(api, model, label);
+  }
+
+  // Default: staged switch — speichern, warnen, nicht anwenden
+  const current = readCurrentModel();
+
+  if (current === model) {
+    return { text: `ℹ️ Already on **${label}**\n\`${model}\`` };
+  }
+
+  writePending({ model, label, requestedAt: new Date().toISOString() });
+  api.logger.info(`[cli-bridge] staged switch → ${model} (pending, not applied yet)`);
+
+  return {
+    text:
+      `📋 **Model switch staged: ${label}**\n` +
+      `\`${model}\`\n\n` +
+      `⚠️ **NOT applied yet** — switching mid-session breaks the active agent:\n` +
+      `tool calls fail silently, plan files don't get written, no feedback.\n\n` +
+      `**To apply:**\n` +
+      `• \`/cli-apply\` — apply after finishing your current task\n` +
+      `• \`/cli-* --now\` — force immediate switch (only between sessions!)`,
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -303,7 +492,7 @@ function proxyTestRequest(
 const plugin = {
   id: "openclaw-cli-bridge-elvatis",
   name: "OpenClaw CLI Bridge",
-  version: "0.2.15",
+  version: "0.2.27",
   description:
     "Phase 1: openai-codex auth bridge. " +
     "Phase 2: HTTP proxy for gemini/claude CLIs. " +
@@ -317,6 +506,10 @@ const plugin = {
     const apiKey = cfg.proxyApiKey ?? DEFAULT_PROXY_API_KEY;
     const timeoutMs = cfg.proxyTimeoutMs ?? 120_000;
     const codexAuthPath = cfg.codexAuthPath ?? DEFAULT_CODEX_AUTH_PATH;
+    const grokSessionPath = cfg.grokSessionPath ?? DEFAULT_SESSION_PATH;
+
+    // ── Grok session restore (non-blocking) ───────────────────────────────────
+    void tryRestoreGrokSession(grokSessionPath, (msg) => api.logger.info(msg));
 
     // ── Phase 1: openai-codex auth bridge ─────────────────────────────────────
     if (enableCodex) {
@@ -413,6 +606,15 @@ const plugin = {
             timeoutMs,
             log: (msg) => api.logger.info(msg),
             warn: (msg) => api.logger.warn(msg),
+            getGrokContext: () => grokContext,
+            connectGrokContext: async () => {
+              const ctx = await connectToOpenClawBrowser((msg) => api.logger.info(msg));
+              if (ctx) {
+                const check = await verifySession(ctx, (msg) => api.logger.info(msg));
+                if (check.valid) { grokContext = ctx; return ctx; }
+              }
+              return null;
+            },
           });
           proxyServer = server;
           api.logger.info(
@@ -436,6 +638,15 @@ const plugin = {
                 port, apiKey, timeoutMs,
                 log: (msg) => api.logger.info(msg),
                 warn: (msg) => api.logger.warn(msg),
+                getGrokContext: () => grokContext,
+                connectGrokContext: async () => {
+                  const ctx = await connectToOpenClawBrowser((msg) => api.logger.info(msg));
+                  if (ctx) {
+                    const check = await verifySession(ctx, (msg) => api.logger.info(msg));
+                    if (check.valid) { grokContext = ctx; return ctx; }
+                  }
+                  return null;
+                },
               });
               proxyServer = server;
               api.logger.info(`[cli-bridge] proxy ready on :${port} (retry)`);
@@ -483,11 +694,13 @@ const plugin = {
       const { name, model, description, label } = entry;
       api.registerCommand({
         name,
-        description,
+        description: `${description}. Pass --now to apply immediately (only between sessions!).`,
+        acceptsArgs: true,
         requireAuth: false,
         handler: async (ctx: PluginCommandContext): Promise<PluginCommandResult> => {
-          api.logger.info(`[cli-bridge] /${name} by ${ctx.senderId ?? "?"}`);
-          return switchModel(api, model, label);
+          const forceNow = (ctx.args ?? "").trim().toLowerCase() === "--now";
+          api.logger.info(`[cli-bridge] /${name} by ${ctx.senderId ?? "?"} forceNow=${forceNow}`);
+          return switchModel(api, model, label, forceNow);
         },
       } satisfies OpenClawPluginCommandDefinition);
     }
@@ -495,10 +708,13 @@ const plugin = {
     // ── Phase 3b: /cli-back — restore previous model ──────────────────────────
     api.registerCommand({
       name: "cli-back",
-      description: "Restore the model that was active before the last /cli-* switch",
+      description: "Restore the model active before the last /cli-* switch. Clears any pending staged switch.",
       requireAuth: false,
       handler: async (ctx: PluginCommandContext): Promise<PluginCommandResult> => {
         api.logger.info(`[cli-bridge] /cli-back by ${ctx.senderId ?? "?"}`);
+
+        // Clear any pending staged switch
+        clearPending();
 
         const state = readState();
         if (!state?.previousModel) {
@@ -526,6 +742,57 @@ const plugin = {
         } catch (err) {
           return { text: `❌ Error: ${(err as Error).message}` };
         }
+      },
+    } satisfies OpenClawPluginCommandDefinition);
+
+    // ── Phase 3b2: /cli-apply — apply staged model switch ─────────────────────
+    api.registerCommand({
+      name: "cli-apply",
+      description: "Apply a staged /cli-* model switch. Use this AFTER finishing your current task.",
+      requireAuth: false,
+      handler: async (ctx: PluginCommandContext): Promise<PluginCommandResult> => {
+        api.logger.info(`[cli-bridge] /cli-apply by ${ctx.senderId ?? "?"}`);
+
+        const pending = readPending();
+        if (!pending) {
+          const current = readCurrentModel();
+          return {
+            text:
+              `ℹ️ No staged switch pending.\n` +
+              `Current model: \`${current ?? "unknown"}\`\n\n` +
+              `Use \`/cli-sonnet\`, \`/cli-opus\` etc. to stage a switch.`,
+          };
+        }
+
+        api.logger.info(`[cli-bridge] applying staged switch → ${pending.model}`);
+        return applyModelSwitch(api, pending.model, pending.label);
+      },
+    } satisfies OpenClawPluginCommandDefinition);
+
+    // ── Phase 3b3: /cli-pending — show staged switch ───────────────────────────
+    api.registerCommand({
+      name: "cli-pending",
+      description: "Show the currently staged model switch (if any).",
+      requireAuth: false,
+      handler: async (): Promise<PluginCommandResult> => {
+        const pending = readPending();
+        const current = readCurrentModel();
+        if (!pending) {
+          return {
+            text:
+              `✅ No pending switch.\n` +
+              `Current model: \`${current ?? "unknown"}\``,
+          };
+        }
+        return {
+          text:
+            `📋 **Staged switch pending:**\n` +
+            `→ \`${pending.model}\` (${pending.label})\n` +
+            `Requested: ${pending.requestedAt}\n\n` +
+            `Current: \`${current ?? "unknown"}\`\n\n` +
+            `Run \`/cli-apply\` to apply after finishing your current task.\n` +
+            `Run \`/cli-sonnet --now\` etc. to discard and switch immediately.`,
+        };
       },
     } satisfies OpenClawPluginCommandDefinition);
 
@@ -605,14 +872,105 @@ const plugin = {
           }
           lines.push("");
         }
+        const pending = readPending();
+        const pendingNote = pending ? ` ← pending: ${pending.label}` : "";
+
         lines.push("*Utility*");
-        lines.push("  /cli-back            Restore previous model");
+        lines.push(`  /cli-apply           Apply staged switch${pendingNote}`);
+        lines.push("  /cli-pending         Show staged switch (if any)");
+        lines.push("  /cli-back            Restore previous model + clear staged");
         lines.push("  /cli-test [model]    Health check (no model switch)");
         lines.push("  /cli-list            This overview");
+        lines.push("");
+        lines.push("*Switching safely:*");
+        lines.push("  /cli-sonnet          → stages switch (safe, apply later)");
+        lines.push("  /cli-sonnet --now    → immediate switch (only between sessions!)");
         lines.push("");
         lines.push(`Proxy: \`127.0.0.1:${port}\``);
 
         return { text: lines.join("\n") };
+      },
+    } satisfies OpenClawPluginCommandDefinition);
+
+    // ── Phase 4: Grok web-session commands ────────────────────────────────────
+
+    api.registerCommand({
+      name: "grok-login",
+      description: "Authenticate grok.com: imports cookies from OpenClaw browser into persistent profile",
+      handler: async (): Promise<PluginCommandResult> => {
+        if (grokContext) {
+          const check = await verifySession(grokContext, (msg) => api.logger.info(msg));
+          if (check.valid) {
+            return { text: "✅ Already connected to grok.com. Use `/grok-logout` first to reset." };
+          }
+          grokContext = null;
+        }
+        api.logger.info("[cli-bridge:grok] /grok-login: importing session from OpenClaw browser…");
+        const { chromium } = await import("playwright");
+
+        // Step 1: try to grab cookies from the OpenClaw browser (user must have grok.com open)
+        let importedCookies: unknown[] = [];
+        try {
+          const ocBrowser = await chromium.connectOverCDP("http://127.0.0.1:18800", { timeout: 3000 });
+          const ocCtx = ocBrowser.contexts()[0];
+          if (ocCtx) {
+            importedCookies = await ocCtx.cookies(["https://grok.com", "https://x.ai", "https://accounts.x.ai"]);
+            api.logger.info(`[cli-bridge:grok] imported ${importedCookies.length} cookies from OpenClaw browser`);
+          }
+          await ocBrowser.close().catch(() => {});
+        } catch {
+          api.logger.info("[cli-bridge:grok] OpenClaw browser not available — using saved profile");
+        }
+
+        // Step 2: launch/connect persistent context and inject cookies
+        const ctx = await getOrLaunchGrokContext((msg) => api.logger.info(msg));
+        if (!ctx) return { text: "❌ Could not launch browser. Check server logs." };
+
+        if (importedCookies.length > 0) {
+          await ctx.addCookies(importedCookies as Parameters<typeof ctx.addCookies>[0]);
+          api.logger.info(`[cli-bridge:grok] cookies injected into persistent profile`);
+        }
+
+        // Step 3: navigate to grok.com and verify
+        const pages = ctx.pages();
+        const page = pages.find(p => p.url().includes("grok.com")) ?? await ctx.newPage();
+        if (!page.url().includes("grok.com")) {
+          await page.goto("https://grok.com", { waitUntil: "domcontentloaded", timeout: 15_000 });
+        }
+
+        const check = await verifySession(ctx, (msg) => api.logger.info(msg));
+        if (!check.valid) {
+          return { text: `❌ Session not valid: ${check.reason}\n\nMake sure grok.com is open in your browser and you're logged in, then run /grok-login again.` };
+        }
+        grokContext = ctx;
+        return { text: `✅ Grok session ready!\n\nModels available:\n• \`vllm/web-grok/grok-3\`\n• \`vllm/web-grok/grok-3-fast\`\n• \`vllm/web-grok/grok-3-mini\`\n• \`vllm/web-grok/grok-3-mini-fast\`\n\nSession persists across gateway restarts (profile: ~/.openclaw/grok-profile/)` };
+      },
+    } satisfies OpenClawPluginCommandDefinition);
+
+    api.registerCommand({
+      name: "grok-status",
+      description: "Check grok.com session status",
+      handler: async (): Promise<PluginCommandResult> => {
+        if (!grokContext) {
+          return { text: "❌ No active grok.com session\nRun `/grok-login` to authenticate." };
+        }
+        const check = await verifySession(grokContext, (msg) => api.logger.info(msg));
+        if (check.valid) {
+          return { text: `✅ grok.com session active\nProxy: \`127.0.0.1:${port}\`\nModels: web-grok/grok-3, web-grok/grok-3-fast, web-grok/grok-3-mini, web-grok/grok-3-mini-fast` };
+        }
+        grokContext = null;
+        return { text: `❌ Session expired: ${check.reason}\nRun \`/grok-login\` to re-authenticate.` };
+      },
+    } satisfies OpenClawPluginCommandDefinition);
+
+    api.registerCommand({
+      name: "grok-logout",
+      description: "Disconnect from grok.com session (does not close the browser)",
+      handler: async (): Promise<PluginCommandResult> => {
+        // Don't close the context — it belongs to the OpenClaw browser, not us
+        grokContext = null;
+        deleteSession(grokSessionPath);
+        return { text: "✅ Disconnected from grok.com. Run `/grok-login` to reconnect." };
       },
     } satisfies OpenClawPluginCommandDefinition);
 
@@ -621,6 +979,9 @@ const plugin = {
       "/cli-back",
       "/cli-test",
       "/cli-list",
+      "/grok-login",
+      "/grok-status",
+      "/grok-logout",
     ];
     api.logger.info(`[cli-bridge] registered ${allCommands.length} commands: ${allCommands.join(", ")}`);
   },
