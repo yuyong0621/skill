@@ -3,9 +3,15 @@
   "slug": "superior-trade",
   "displayName": "Superior Trade",
   "latest": {
-    "version": "1.4.6",
-    "publishedAt": 1773240606095,
-    "commit": "https://github.com/openclaw/skills/commit/b84651db340c3d9205389c5e6d648a653db67a52"
+    "version": "1.4.7",
+    "publishedAt": 1773241509246,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.4.6",
+      "publishedAt": 1773240606095,
+      "commit": "https://github.com/openclaw/skills/commit/b84651db340c3d9205389c5e6d648a653db67a52"
+    }
+  ]
 }
