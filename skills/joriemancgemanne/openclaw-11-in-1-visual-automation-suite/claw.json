@@ -1,0 +1,14 @@
+{
+  "name": "openclaw-11-in-1-visual-automation-suite",
+  "version": "1.0.0",
+  "author": "Nick",
+  "description": "Professional visual automation skill package, includes full features like full-screen screenshot, OCR recognition, mouse clicking, etc.",
+  "compatibility": ">=1.0.0",
+  "type": "skill-package",
+  "main": "skills/all_skills.py",
+  "keywords": ["visual automation", "OCR", "template matching", "keyboard mouse simulation"],
+  "commercial": {
+    "type": "paid",
+    "price": 2.99
+  }
+}
