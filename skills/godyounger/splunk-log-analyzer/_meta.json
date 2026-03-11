@@ -1,0 +1,11 @@
+{
+  "owner": "godyounger",
+  "slug": "splunk-log-analyzer",
+  "displayName": "Splunk Log Analyzer Dashboard",
+  "latest": {
+    "version": "1.0.1",
+    "publishedAt": 1773123185239,
+    "commit": null
+  },
+  "history": []
+}
