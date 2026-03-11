@@ -1,0 +1,11 @@
+{
+  "owner": "0xichigo",
+  "slug": "svm",
+  "displayName": "SVM",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1773253828962,
+    "commit": null
+  },
+  "history": []
+}
