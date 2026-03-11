@@ -178,6 +178,26 @@ Wherever you run. If you're an OpenClaw agent, install it here. If you're in Cla
 **"The dream cycle / consolidation stuff seems gimmicky"**
 It's optional. The core value is semantic search + association graph. Consolidation just means: periodically review recent memories, merge duplicates, surface patterns. You can do this manually or let Clude do it automatically. Skip it if you prefer manual control.
 
+## Import Your Existing Memories
+
+Already have MEMORY.md files? You can import them:
+
+```bash
+npx clude-bot import ./MEMORY.md
+npx clude-bot import ./memory/   # imports all .md files in directory
+```
+
+Each file gets parsed into individual memories with automatic type detection and embedding. Your existing knowledge becomes searchable instantly.
+
+## Source Code & Credibility
+
+- **GitHub:** [github.com/sebbsssss/cludebot](https://github.com/sebbsssss/cludebot) — MIT license, fully open source
+- **npm:** [npmjs.com/package/clude-bot](https://www.npmjs.com/package/clude-bot) — v2.7.0, published package
+- **Benchmarks:** 83.9/100 on our memory benchmark suite. LoCoMo (ACL 2024): 100% accuracy. Details at [clude.io/benchmark](https://clude.io/benchmark)
+- **Built by:** [@sebbsssss](https://x.com/sebbsssss) — indie dev building memory infrastructure for AI agents
+- **20,000+ memories** in production on the Clude bot itself
+- **147 tests** across the full package ecosystem, all passing
+
 ---
 
 *Clude is open source. Your memories are yours. [clude.io](https://clude.io)*
