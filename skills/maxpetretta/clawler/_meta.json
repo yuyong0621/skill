@@ -3,11 +3,16 @@
   "slug": "clawler",
   "displayName": "Clawler",
   "latest": {
-    "version": "2026.3.11-5",
-    "publishedAt": 1773249009022,
-    "commit": "https://github.com/openclaw/skills/commit/029de6d262c830315ae93bf6539169bb4e57a6d1"
+    "version": "2026.3.11-6",
+    "publishedAt": 1773249234817,
+    "commit": null
   },
   "history": [
+    {
+      "version": "2026.3.11-5",
+      "publishedAt": 1773249009022,
+      "commit": "https://github.com/openclaw/skills/commit/029de6d262c830315ae93bf6539169bb4e57a6d1"
+    },
     {
       "version": "2026.3.11-3",
       "publishedAt": 1773248505876,
