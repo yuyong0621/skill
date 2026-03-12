@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 /**
  * 格式化数字（如 1285000 -> 128.5万）

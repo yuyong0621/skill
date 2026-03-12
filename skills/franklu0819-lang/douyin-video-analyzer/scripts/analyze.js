@@ -12,6 +12,7 @@ const playwrightScraper = require('../lib/playwright-scraper');
 const videoDownloader = require('../lib/video-downloader');
 const frameExtractor = require('../lib/frame-extractor');
 const aiAnalyzer = require('../lib/ai-analyzer');
+const audioProcessor = require('../lib/audio-processor');
 const utils = require('../lib/utils');
 const path = require('path');
 const fs = require('fs');
@@ -43,9 +44,9 @@ function printHelp() {
   console.log('');
   console.log('选项:');
   console.log('  --model <model>        AI 模型 (默认: glm-4.6v)');
-  console.log('  --fps <number>         每秒抽帧数量 (默认: 2)');
+  console.log('  --fps <number>         每秒抽帧数量 (默认: 2, 最大限制: 5)');
   console.log('');
-  console.log('💡 已针对 GLM-4.6V 优化：自动采样最大 50 帧画面进行深度解析。');
+  console.log('💡 采用分段处理模式：每次处理 30 帧，自动汇总最终分析结果。');
 }
 
 function attachAIData(report, phase2Data) {
@@ -98,20 +99,41 @@ async function main() {
       reportBase = utils.generateReport({ ...pwData, videoId, duration: 0 });
     }
 
-    utils.printInfo(`步骤 3/3: 正在提取 ${args.fps}fps 关键帧 (最大上限 ${MAX_SPEC_FRAMES} 帧) 并进行 AI 视觉拆解...`);
+    const effectiveFps = Math.min(5, Math.max(0.1, args.fps));
+    utils.printInfo(`步骤 3/3: 正在提取 ${effectiveFps}fps 关键帧 (分段处理模式) 并进行 AI 视觉拆解...`);
     const framesDir = path.join(TEMP_DIR, 'frames', videoId);
     const { frames } = await frameExtractor.extractKeyframes(videoFilePath, framesDir, { 
-        interval: 1 / args.fps, 
-        maxFrames: MAX_SPEC_FRAMES 
+        interval: 1 / effectiveFps
     });
     
     if (frames.length === 0) throw new Error('关键帧提取失败');
+    
+    // Phase 4: 音频提取与 ASR 识别
+    utils.printInfo('步骤 4/4: 正在提取音频并进行智能 ASR 识别...');
+    const audioPathRaw = path.join(TEMP_DIR, 'audio', `${videoId}`);
+    fs.mkdirSync(path.dirname(audioPathRaw), { recursive: true });
+    
+    // 自动适配后缀
+    const actualAudioPath = await audioProcessor.extractAudio(videoFilePath, audioPathRaw);
+    const scriptText = await audioProcessor.recognizeSpeech(actualAudioPath, ZHIPU_API_KEY);
+    
+    // 执行视觉分析
     const aiResult = await aiAnalyzer.analyzeFrames(frames, ZHIPU_API_KEY, args.model);
 
-    console.log(attachAIData(reportBase, aiResult));
+    // 组装最终报告
+    let finalReport = reportBase;
+    if (scriptText) {
+      finalReport += '\n🎙️ 语音转文字 (ASR)\n';
+      finalReport += '━━━━━━━━━━━━━━━━━━━━\n';
+      finalReport += `${scriptText}\n\n`;
+    }
+    finalReport = attachAIData(finalReport, aiResult);
+
+    console.log(finalReport);
     
-    // 清理临时帧文件
+    // 清理临时文件
     frameExtractor.cleanupFrames(framesDir);
+    if (fs.existsSync(actualAudioPath)) fs.unlinkSync(actualAudioPath);
 
   } catch (error) {
     utils.printError(error.message);
