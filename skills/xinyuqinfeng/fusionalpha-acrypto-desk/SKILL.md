@@ -1,7 +1,7 @@
 ---
 name: fusionalpha-acrypto-desk
 description: >-
-  双市场（A股 + Crypto）分析技能。凡是用户提到：币/crypto 行情、A股个股/板块、早盘内参/早报、交易策略/入场/止损/目标/胜率/回撤，立刻加载本技能。
+  A股-加密货币-定时早报-多维度指标全方位分析，安装即用，无复杂配置，内置公开数据源，多指标，数据全面，涵盖基本面技术面，新闻市场情绪等，自带验证，降低ai幻觉。双市场（A股 + Crypto）分析技能。凡是用户提到：币/crypto 行情、A股个股/板块、早盘内参/早报、交易策略/入场/止损/目标/胜率/回撤，立刻加载本技能。
   默认输出三类：加密三维共振报告、A股深度分析、早盘决策内参。需要时也可混合双市场视角。
   依赖多维数据（K线/指标、订单簿/交易流、衍生品、资金流、涨停池、龙虎榜、财经早餐）；大部分来源免密钥，新闻源 CryptoPanic 需用户自备 token。
 ---
@@ -112,19 +112,78 @@ ALWAYS use this exact template:
 方向只能是：积极买入 / 逢低吸纳 / 保持观望。
 
 ### C) 早盘决策内参
-ALWAYS use this exact template:
+MUST use this EXACT template with DATA-FILLED placeholders. NO DEVIATION ALLOWED.
 
-交易内参 - [日期]
+交易内参 - [meta.trade_date]
 一、今日财经要闻
+   [IF financial_breakfast exists and non-empty]
+   1. [financial_breakfast[0].标题] - [financial_breakfast[0].摘要] ([financial_breakfast[0].发布时间])
+   2. [financial_breakfast[1].标题] - [financial_breakfast[1].摘要] ([financial_breakfast[1].发布时间])
+   3. [financial_breakfast[2].标题] - [financial_breakfast[2].摘要] ([financial_breakfast[2].发布时间])
+   [IF financial_breakfast empty or <3 items]
+   今日财经早餐数据不可用或不足3条
 二、市场核心看板
+   [IF index_opening exists and non-empty]
+   - 上证指数: [index_opening[0].最新价] ([index_opening[0].涨跌幅]%)
+   - 沪深300: [index_opening[2].最新价] ([index_opening[2].涨跌幅]%)
+   - 创业板指: [index_opening[6].最新价] ([index_opening[6].涨跌幅]%)
+   [IF index_opening missing/incomplete]
+   指数数据不可用
+   [IF hot_industries_flow exists and non-empty]
+   资金流净入前三: 
+     1. [hot_industries_flow[0].行业] (+[hot_industries_flow[0].净额]亿)
+     2. [hot_industries_flow[1].行业] (+[hot_industries_flow[1].净额]亿)
+     3. [hot_industries_flow[2].行业] (+[hot_industries_flow[2].净额]亿)
+   [IF hot_industries_flow missing/incomplete]
+   行业资金数据不可用
 三、今日核心攻击方向
+   [BASED SOLELY ON JSON DATA - NO EXTERNAL KNOWLEDGE]
+   [IF index_opening shows >1% rise in >=2 indices]
+   建议关注市场强势方向，原因：[index_opening[X].名称]涨幅达[index_opening[X].涨跌幅]%
+   [ELSEIF index_opening shows >1% fall in >=2 indices]
+   建议逢高减仓观望，原因：[index_opening[X].名称]跌幅达[index_opening[X].涨跌幅]%
+   [ELSE]
+   市场震荡整理，建议观望等待明确方向
+   [ALWAYS ADD IF hot_industries_flow shows positive net inflow]
+   同时注意：[hot_industries_flow[0].行业]行业今日净流入[hot_industries_flow[0].净额]亿元，可关注其龙头股
 四、潜在焦点个股池
+   [IF previous_limit_up_stocks non-empty]
+   1. [previous_limit_up_stocks[0].代码] [previous_limit_up_stocks[0].名称] - 昨日涨停，连板数[previous_limit_up_stocks[0].昨日连板数]
+   2. [previous_limit_up_stocks[1].代码] [previous_limit_up_stocks[1].名称] - 昨日涨停，连板数[previous_limit_up_stocks[1].昨日连板数]
+   3. [previous_limit_up_stocks[2].代码] [previous_limit_up_stocks[2].名称] - 昨日涨停，连板数[previous_limit_up_stocks[2].昨日连板数]
+   [IF institutional_LHB_buy non-empty]
+   4. [institutional_LHB_buy[0].股票代码] [institutional_LHB_buy[0].股票名称] - 今日机构净买入[institutional_LHB_buy[0].净额/10000]万元
+   5. [institutional_LHB_buy[1].股票代码] [institutional_LHB_buy[1].股票名称] - 今日机构净买入[institutional_LHB_buy[1].净额/10000]万元
+   [IF BOTH lists empty or <3 items total]
+   今日无可提供的焦点个股池（数据不足）
 五、交易纪律与风险提示
+   1. 严格执行止损，单日亏损不超过账户2%
+   2. [IF index_opening shows >2% volatility in any index]
+      注意盘中波动较大（[index_opening[X].名称]振幅[index_opening[X].振幅]%），避免追高杀跌
+   [ELSE]
+      注意盘中波动，控制好仓位
+   3. 建议分批建仓，避免一次性满仓
 
 ## Evidence requirements
-- 每个关键结论至少2条证据支撑。
-- 证据必须包含字段路径与具体数值。
-- 不允许“凭空价位”或“无数据依据的断言”。
+- 每个具体结论（数字、趋势、建议、股票代码）必须有>=2条证据支撑
+- 证据格式必须为: <精确JSON路径>=<具体数值>
+- 禁止使用外部知识、推断或猜测作为证据
+- 早盘内参有效证据示例:
+  - financial_breakfast[0].标题=东方财富财经早餐 3月12日周三
+  - hot_industries_flow[0].净额=137.53
+  - index_opening[2].涨跌幅=0.776
+  - previous_limit_up_stocks[0].代码=000533
+  - institutional_LHB_buy[0].净额=48403.67
+- 如果无法提供2条真实JSON证据，输出必须标注为"数据不足"并给出观望建议（仅在第五节）
+
+## Anti-Hallucination Enforcement (MANDATORY FOR MORNING BRIEF)
+- **NEVER** invent stock codes, percentages, amounts, or news not present in JSON
+- **NEVER** use external market knowledge (e.g., "BTC新闻", "美股道琼斯") in morning brief
+- **NEVER** add sections not in template (no "热门关注", "加密亮点", etc.)
+- **NEVER** use emojis, symbols, or decorative formatting
+- **IF** JSON lacks data for a required field, **MUST** output exactly: "数据不可用"
+- **IF** JSON has insufficient data (<3 items for a list), **MUST** output exactly: "数据不足X条"
+- Violation of any rule = output must be rejected and regenerated
 
 ## Clarity rules
 - 表达紧凑、结构清晰，避免冗长空话。
