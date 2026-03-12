@@ -1,6 +1,6 @@
 ---
 name: wilma
-version: 1.2.0
+version: 1.4.1
 description: Access Finland's Wilma school system from AI agents. Fetch schedules, homework, exams, grades, messages, and news via the wilma CLI. Start with `wilma summary --json` for a full daily briefing, or drill into specific data with individual commands.
 metadata:
   {
@@ -61,7 +61,10 @@ Returns today's and tomorrow's schedule, upcoming exams, recent homework, recent
 wilma schedule list --when today --student <id|name> --json
 wilma schedule list --when tomorrow --student <id|name> --json
 wilma schedule list --when week --student <id|name> --json
+wilma schedule list --date 2026-03-10 --student <id|name> --json
+wilma schedule list --weekday thu --student <id|name> --json
 ```
+`--weekday` also accepts Finnish short forms: `ma`, `ti`, `ke`, `to`, `pe`, `la`, `su`. Use `--date` or `--weekday`, not both.
 
 ### Homework
 ```bash
@@ -100,6 +103,18 @@ wilma exams list --all-students --json
 ```
 
 You can also pass a name fragment for `--student` (fuzzy match).
+
+## MFA (Multi-Factor Authentication)
+If the Wilma account has MFA/TOTP enabled:
+
+**Interactive setup (recommended):** Run `wilma` interactively. When MFA is detected, choose "Save TOTP secret for automatic login" and paste your TOTP secret or `otpauth://` URI. Future logins will auto-authenticate.
+
+**Non-interactive (one-off):** Pass the TOTP secret directly:
+```bash
+wilma schedule list --totp-secret <base32-key> --student "Stella" --json
+wilma schedule list --totp-secret 'otpauth://totp/...' --student "Stella" --json
+```
+If the TOTP secret has been saved via interactive setup, `--totp-secret` is not needed — the CLI auto-authenticates from the stored config.
 
 ## Notes
 - If no `--student` is provided, the CLI uses the last selected student from `~/.config/wilmai/config.json` (or `$XDG_CONFIG_HOME/wilmai/config.json`).

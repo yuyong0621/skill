@@ -3,11 +3,16 @@
   "slug": "wilma",
   "displayName": "Wilma",
   "latest": {
-    "version": "1.2.0",
-    "publishedAt": 1771271399261,
-    "commit": "https://github.com/openclaw/skills/commit/fd688da9fba3fd572ae51bb100e2215bcfd7923d"
+    "version": "1.4.1",
+    "publishedAt": 1772712781080,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.2.0",
+      "publishedAt": 1771271399261,
+      "commit": "https://github.com/openclaw/skills/commit/fd688da9fba3fd572ae51bb100e2215bcfd7923d"
+    },
     {
       "version": "1.1.1",
       "publishedAt": 1770674597251,
