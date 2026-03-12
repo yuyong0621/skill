@@ -1,11 +1,17 @@
 {
   "owner": "xueyetianya",
   "slug": "podcast-notes",
-  "displayName": "podcast-notes",
+  "displayName": "Podcast Notes",
   "latest": {
-    "version": "1.0.0",
-    "publishedAt": 1773209885730,
-    "commit": "https://github.com/openclaw/skills/commit/ffadf41d1f05901bd45ee4504000f549e0282391"
+    "version": "0.0.1",
+    "publishedAt": 1773283755659,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.0",
+      "publishedAt": 1773209885730,
+      "commit": "https://github.com/openclaw/skills/commit/ffadf41d1f05901bd45ee4504000f549e0282391"
+    }
+  ]
 }
