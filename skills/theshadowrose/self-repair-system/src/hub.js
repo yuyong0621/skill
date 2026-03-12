@@ -1,12 +1,11 @@
 /**
  * Automation Hub — Central Orchestrator
  * 
- * Ties together self-repair, task routing, and scheduled routines.
+ * Ties together self-repair and scheduled routines.
  * One import, one start(), everything runs.
  */
 
 const { SelfRepair } = require('./self-repair');
-const { TaskRouter } = require('./task-router');
 const { RoutineManager } = require('./routine-manager');
 const http = require('http');
 
@@ -31,10 +30,6 @@ class AutomationHub {
       ollamaPort: this.config.ollamaPort,
       requiredFiles: this.config.requiredFiles,
       requiredDirs: this.config.requiredDirs
-    });
-
-    this.router = new TaskRouter({
-      defaultModel: this.config.defaultModel
     });
 
     this.routines = new RoutineManager();
@@ -75,11 +70,6 @@ class AutomationHub {
     this.routines.stop();
     this.running = false;
     console.log('[Hub] Shut down.');
-  }
-
-  /** Route a task to the right model */
-  route(taskText) {
-    return this.router.route(taskText);
   }
 
   /** Send a prompt to Ollama and get a response */
@@ -124,26 +114,10 @@ class AutomationHub {
     });
   }
 
-  /** Smart ask — routes to right model, then queries */
+  /** Ask Ollama with the default model */
   async smartAsk(taskText) {
-    const routing = this.route(taskText);
-    
-    // If routed to local, use Ollama
-    if (routing.model === 'local' || routing.model === this.config.defaultModel) {
-      return {
-        response: await this.ask(taskText),
-        model: this.config.defaultModel,
-        routing
-      };
-    }
-
-    // If routed to API model, caller handles it (we don't store API keys)
-    return {
-      response: null,
-      model: routing.model,
-      routing,
-      note: 'Routed to API model — implement your own API call for: ' + routing.model
-    };
+    const response = await this.ask(taskText);
+    return { response, model: this.config.defaultModel };
   }
 
   /** Schedule a recurring task */

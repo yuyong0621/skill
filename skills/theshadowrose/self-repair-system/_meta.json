@@ -3,9 +3,15 @@
   "slug": "self-repair-system",
   "displayName": "Self-Repair System — Autonomous AI Automation",
   "latest": {
-    "version": "1.0.1",
-    "publishedAt": 1773289834043,
-    "commit": "https://github.com/openclaw/skills/commit/0639d136fac2f4735e644d44ca41fc4058225377"
+    "version": "1.2.0",
+    "publishedAt": 1773296573837,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.1",
+      "publishedAt": 1773289834043,
+      "commit": "https://github.com/openclaw/skills/commit/0639d136fac2f4735e644d44ca41fc4058225377"
+    }
+  ]
 }

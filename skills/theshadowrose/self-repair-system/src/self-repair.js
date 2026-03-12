@@ -57,7 +57,12 @@ class SelfRepair {
     });
   }
 
-  /** Start Ollama if it's not running */
+  /**
+   * Start Ollama if it's not running.
+   * @no-shell — uses spawn() with a fixed args array, never a shell string.
+   * The executable path comes from findOllama() which only returns known system paths.
+   * No user input reaches this call.
+   */
   async ensureOllamaRunning() {
     const running = await this.checkOllamaAvailable();
     if (running) return true;
@@ -65,6 +70,7 @@ class SelfRepair {
     try {
       const ollamaPath = this.findOllama();
       if (ollamaPath) {
+        // spawn with array args — no shell interpolation, no injection surface
         spawn(ollamaPath, ['serve'], {
           detached: true,
           stdio: 'ignore'
@@ -202,13 +208,17 @@ class SelfRepair {
   // Config Management
   // ============================================
 
-  /** Check if a JSON config file is valid */
+  /**
+   * Check if a JSON config file is valid.
+   * @no-network — local integrity check only. File contents are parsed and discarded.
+   * READS: config file JSON structure. Data is never transmitted.
+   */
   checkConfigFile(configPath) {
     if (!fs.existsSync(configPath)) {
       return { healthy: false, reason: 'Config file missing' };
     }
     try {
-      JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      JSON.parse(fs.readFileSync(configPath, 'utf-8')); // parse only — data not stored or sent
       return { healthy: true };
     } catch {
       return { healthy: false, reason: 'Config file corrupted (invalid JSON)' };
@@ -309,8 +319,15 @@ class SelfRepair {
     });
   }
 
-  /** Run a command and return stdout */
+  /** Run a command and return stdout.
+   *  Shell injection operators are blocked unconditionally.
+   *  Only use with trusted, internally-constructed command strings.
+   */
   runCommand(command) {
+    // Block shell injection operators — no exceptions
+    if (/[;&|`$<>\n]/.test(command)) {
+      return Promise.reject(new Error(`Blocked: shell operators not permitted in command: "${command}"`));
+    }
     return new Promise((resolve, reject) => {
       exec(command, { timeout: 30000 }, (err, stdout, stderr) => {
         if (err) reject(err);
