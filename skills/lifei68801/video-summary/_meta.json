@@ -3,11 +3,16 @@
   "slug": "video-summary",
   "displayName": "Video Summary",
   "latest": {
-    "version": "1.4.6",
-    "publishedAt": 1773273126094,
-    "commit": "https://github.com/openclaw/skills/commit/b2195f20c4a5dbe64efd9c5834d8518ae5b10186"
+    "version": "1.6.1",
+    "publishedAt": 1773278387859,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.4.6",
+      "publishedAt": 1773273126094,
+      "commit": "https://github.com/openclaw/skills/commit/b2195f20c4a5dbe64efd9c5834d8518ae5b10186"
+    },
     {
       "version": "1.3.6",
       "publishedAt": 1773074982274,
